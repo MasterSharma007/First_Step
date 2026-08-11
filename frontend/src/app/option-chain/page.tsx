@@ -111,7 +111,7 @@ export default async function OptionChainPage({
 
           <div className="overflow-x-auto rounded-lg border border-neutral-800">
             <table className="w-full text-sm">
-              <thead className="bg-neutral-900/60 text-xs uppercase text-neutral-500">
+              <thead className="bg-neutral-800 text-xs font-semibold uppercase text-neutral-300">
                 <tr>
                   <th className="px-3 py-2 text-right font-medium">CE OI</th>
                   <th className="px-3 py-2 text-right font-medium">CE Chg</th>

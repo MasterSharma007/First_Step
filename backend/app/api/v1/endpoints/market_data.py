@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.models.option_ohlc import OptionOHLC
 from app.models.spot_ohlc import SpotOHLC
 from app.schemas.market_data import SpotOHLCOut, TrendOut
+from app.services.market_analysis import indicators as ind
 from app.services.market_analysis.trend import detect_trend
 from app.services.option_chain.analyzer import StrikeRow, writing_activity
 
@@ -43,6 +44,7 @@ async def get_trend(
     symbol: str = "NIFTY BANK",
     interval: str = Query("5m", pattern="^(1m|5m|15m|1d)$"),
     lookback: int = Query(100, ge=50, le=1000),
+    sr_lookback: int = Query(20, ge=5, le=500, description="Bars to derive support/resistance from"),
     db: AsyncSession = Depends(get_db),
 ) -> TrendOut:
     """On-demand read of the Trend Detection Engine (SRD §2) against the
@@ -104,10 +106,14 @@ async def get_trend(
         ce_writing, pe_writing = writing["ce_writing"], writing["pe_writing"]
 
     reading = detect_trend(df, ce_writing=ce_writing, pe_writing=pe_writing)
+    support, resistance = ind.support_resistance(df, lookback=sr_lookback)
     return TrendOut(
         symbol=symbol,
         interval=interval,
         as_of=spot_rows[-1].datetime_,
         direction=reading.direction,
         reasons=reading.reasons,
+        support=support,
+        resistance=resistance,
+        current_price=float(spot_rows[-1].close),
     )

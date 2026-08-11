@@ -61,3 +61,6 @@ class TrendOut(BaseModel):
     as_of: datetime
     direction: str  # BULLISH, BEARISH, NEUTRAL
     reasons: list[str]
+    support: float
+    resistance: float
+    current_price: float

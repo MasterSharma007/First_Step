@@ -17,6 +17,9 @@ export interface Trend {
   as_of: string;
   direction: TrendDirection;
   reasons: string[];
+  support: number;
+  resistance: number;
+  current_price: number;
 }
 
 export interface OptionChainRow {

@@ -6,6 +6,7 @@ import type {
   SpotOHLC,
   TradeExecution,
   TradeSignal,
+  Trend,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
@@ -41,6 +42,13 @@ export const api = {
     if (params.symbol) query.set("symbol", params.symbol);
     if (params.limit) query.set("limit", String(params.limit));
     return request<SpotOHLC[]>(`/market-data/spot-ohlc?${query.toString()}`);
+  },
+
+  trend: (params: { symbol?: string; interval?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.symbol) query.set("symbol", params.symbol);
+    if (params.interval) query.set("interval", params.interval);
+    return request<Trend>(`/market-data/trend?${query.toString()}`);
   },
 
   optionChain: (underlying: string, expiry: string, spotPrice: number) =>

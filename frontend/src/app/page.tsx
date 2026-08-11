@@ -2,13 +2,15 @@ import EmptyState from "@/components/EmptyState";
 import SignalBadge from "@/components/SignalBadge";
 import SpotChart from "@/components/SpotChart";
 import StatCard from "@/components/StatCard";
+import TrendCard from "@/components/TrendCard";
 import { api } from "@/lib/api";
-import type { SpotOHLC, TradeSignal } from "@/lib/types";
+import type { SpotOHLC, TradeSignal, Trend } from "@/lib/types";
 
 export default async function DashboardPage() {
-  const [candles, signals] = await Promise.all([
+  const [candles, signals, trend] = await Promise.all([
     api.spotOhlc({ interval: "5m", limit: 200 }).catch((): SpotOHLC[] => []),
     api.signals(10).catch((): TradeSignal[] => []),
+    api.trend({ interval: "5m" }).catch((): Trend | null => null),
   ]);
 
   const latest = candles.at(-1);
@@ -35,6 +37,8 @@ export default async function DashboardPage() {
         <StatCard label="Day High" value={latest ? latest.high.toFixed(2) : "—"} />
         <StatCard label="Day Low" value={latest ? latest.low.toFixed(2) : "—"} />
       </div>
+
+      {trend && <TrendCard trend={trend} />}
 
       <section className="rounded-lg border border-neutral-800 bg-neutral-900/30 p-4">
         <h2 className="mb-4 text-sm font-medium text-neutral-300">Spot Price (5m)</h2>

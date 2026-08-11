@@ -9,6 +9,16 @@ export interface SpotOHLC {
   volume: number;
 }
 
+export type TrendDirection = "BULLISH" | "BEARISH" | "NEUTRAL";
+
+export interface Trend {
+  symbol: string;
+  interval: string;
+  as_of: string;
+  direction: TrendDirection;
+  reasons: string[];
+}
+
 export interface OptionChainRow {
   strike: number;
   ce_ltp: number | null;

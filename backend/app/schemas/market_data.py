@@ -53,3 +53,11 @@ class IndiaVixOut(BaseModel):
     interval: str
     datetime_: datetime
     value: float
+
+
+class TrendOut(BaseModel):
+    symbol: str
+    interval: str
+    as_of: datetime
+    direction: str  # BULLISH, BEARISH, NEUTRAL
+    reasons: list[str]

@@ -30,8 +30,9 @@ class Settings(BaseSettings):
     kite_redirect_url: str = "http://localhost:8000/api/v1/kite/callback"
 
     # Trading
-    trading_symbol: str = "NIFTY BANK"
+    trading_symbol: str = "NIFTY BANK"  # NSE spot index name
     trading_exchange: str = "NFO"
+    nfo_underlying: str = "BANKNIFTY"  # NFO futures/options `name` field differs from the spot symbol
     paper_trading: bool = True
     max_daily_loss: float = 10000.0
     max_trade_loss: float = 2000.0

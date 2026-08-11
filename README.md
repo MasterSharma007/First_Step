@@ -35,7 +35,8 @@ app/
 │   ├── backtesting/     historical strategy runner + metrics
 │   └── trading/         paper + live trading engines
 ├── ml/              feature extraction + scoring model interface
-└── workers/         background tick ingestion / aggregation tasks
+├── workers/         background tick ingestion / aggregation tasks
+└── cli/             `backfill` - historical data backfill CLI
 ```
 
 ## Getting started
@@ -58,7 +59,28 @@ uv run uvicorn app.main:app --reload
 
 API docs at `http://localhost:8000/docs`.
 
-### 3. Frontend
+### 3. Backfill historical data
+
+Requires `KITE_ACCESS_TOKEN` to be set (regenerated daily via the login
+flow at `GET /api/v1/kite/login-url` → `/api/v1/kite/callback`, see
+`app/services/kite/client.py`).
+
+```bash
+cd backend
+uv run backfill spot --years 2        # NIFTY BANK spot, 1d/15m/5m/1m
+uv run backfill vix --years 2         # India VIX
+uv run backfill futures --years 1     # currently-listed BANKNIFTY futures
+uv run backfill options --expiries 2 --strikes-around-atm 10
+uv run backfill all --years 2         # everything above
+```
+
+`futures`/`options` can only backfill contracts Kite currently lists (their
+`/instruments` endpoint doesn't expose expired contracts) - history for
+those accumulates going forward via the live feed instead. `spot`/`vix`
+have no such limit. See `app/cli/backfill.py` for all flags (`--from`,
+`--to`, `--interval`, `--delay` for rate limiting, etc).
+
+### 4. Frontend
 
 ```bash
 cd frontend

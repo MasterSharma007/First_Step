@@ -4,7 +4,7 @@ data API. Fetches spot/option/futures OHLC for backfilling the database.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from app.services.kite.client import KiteClient
 
@@ -14,6 +14,34 @@ INTERVAL_MAP = {
     "15m": "15minute",
     "1d": "day",
 }
+
+# Kite's historical API caps how much date range you can request in a
+# single call, keyed by their (not our) interval name.
+MAX_DAYS_PER_REQUEST = {
+    "minute": 60,
+    "3minute": 100,
+    "5minute": 100,
+    "10minute": 100,
+    "15minute": 100,
+    "30minute": 100,
+    "60minute": 400,
+    "day": 2000,
+}
+
+
+def iter_date_chunks(from_date: date, to_date: date, interval: str) -> list[tuple[date, date]]:
+    """Split [from_date, to_date] into windows that respect Kite's per-request
+    range limit for `interval` (our short form, e.g. "1m", "1d")."""
+    kite_interval = INTERVAL_MAP.get(interval, interval)
+    max_days = MAX_DAYS_PER_REQUEST.get(kite_interval, 60)
+
+    chunks: list[tuple[date, date]] = []
+    chunk_start = from_date
+    while chunk_start <= to_date:
+        chunk_end = min(chunk_start + timedelta(days=max_days - 1), to_date)
+        chunks.append((chunk_start, chunk_end))
+        chunk_start = chunk_end + timedelta(days=1)
+    return chunks
 
 
 class HistoricalDataService:

@@ -27,6 +27,9 @@ dependencies = [
     "APScheduler>=3.10",
 ]
 
+[project.scripts]
+backfill = "app.cli.backfill:run"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3",

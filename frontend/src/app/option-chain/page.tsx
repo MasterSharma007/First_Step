@@ -1,47 +1,98 @@
 import EmptyState from "@/components/EmptyState";
 import StatCard from "@/components/StatCard";
 import { api, ApiError } from "@/lib/api";
+import type { SpotOHLC } from "@/lib/types";
 
-const DEFAULT_UNDERLYING = "NIFTY BANK";
-
-function nextThursday(): string {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = (4 - day + 7) % 7 || 7;
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
-}
+// option_chain/option_ohlc are stored under the NFO underlying name
+// (e.g. "BANKNIFTY"), which differs from the NSE spot symbol
+// ("NIFTY BANK") - see backend app/core/config.py:nfo_underlying.
+const NFO_UNDERLYING = "BANKNIFTY";
+const SPOT_SYMBOL = "NIFTY BANK";
 
 export default async function OptionChainPage({
   searchParams,
 }: {
-  searchParams: Promise<{ expiry?: string; spot?: string }>;
+  searchParams: Promise<{ expiry?: string; spot?: string; as_of?: string }>;
 }) {
   const params = await searchParams;
-  const expiry = params.expiry ?? nextThursday();
-  const spotPrice = Number(params.spot ?? 50000);
 
-  const analysis = await api.optionChain(DEFAULT_UNDERLYING, expiry, spotPrice).catch((err) => {
-    if (err instanceof ApiError) return null;
-    throw err;
-  });
+  const [expiries, latestSpot] = await Promise.all([
+    api.optionChainExpiries(NFO_UNDERLYING).catch((): string[] => []),
+    api
+      .spotOhlc({ symbol: SPOT_SYMBOL, interval: "1d", limit: 1 })
+      .catch((): SpotOHLC[] => [])
+      .then((rows) => rows.at(-1)?.close),
+  ]);
+
+  const expiry = params.expiry ?? expiries[0];
+  const spotPrice = Number(params.spot ?? latestSpot ?? 0);
+  const asOf = params.as_of;
+
+  const analysis =
+    expiry && spotPrice > 0
+      ? await api.optionChain(NFO_UNDERLYING, expiry, spotPrice, asOf).catch((err) => {
+          if (err instanceof ApiError) return null;
+          throw err;
+        })
+      : null;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-neutral-100">Option Chain</h1>
         <p className="mt-1 text-sm text-neutral-500">
-          {DEFAULT_UNDERLYING} · Expiry {expiry} · PCR, Max Pain, and OI writing activity.
+          {NFO_UNDERLYING} · PCR, Max Pain, and OI writing activity.
         </p>
       </div>
+
+      {expiries.length === 0 ? (
+        <EmptyState
+          title="No option chain data at all"
+          hint="Run `uv run backfill options` first (see backend/app/cli/backfill.py)."
+        />
+      ) : (
+        <form className="flex flex-wrap items-end gap-4 rounded-lg border border-neutral-800 bg-neutral-900/30 p-4">
+          <label className="flex flex-col gap-1 text-xs text-neutral-500">
+            Expiry
+            <select
+              name="expiry"
+              defaultValue={expiry}
+              className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-sm text-neutral-200"
+            >
+              {expiries.map((e) => (
+                <option key={e} value={e}>
+                  {e}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-neutral-500">
+            As of date (blank = latest)
+            <input
+              type="date"
+              name="as_of"
+              defaultValue={asOf ?? ""}
+              className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-sm text-neutral-200"
+            />
+          </label>
+          <button
+            type="submit"
+            className="rounded bg-emerald-500 px-4 py-1.5 text-sm font-medium text-neutral-950 hover:bg-emerald-400"
+          >
+            View
+          </button>
+        </form>
+      )}
 
       {!analysis ? (
         <EmptyState
           title="No option chain snapshot found"
-          hint="Ingest a live/historical option_chain snapshot for this underlying and expiry, then reload."
+          hint="Try a different expiry or date - only backfilled/live-ingested points are available."
         />
       ) : (
         <>
+          <p className="text-xs text-neutral-500">Snapshot as of {new Date(analysis.as_of).toLocaleString()}</p>
+
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <StatCard label="Spot" value={analysis.spot_price.toFixed(2)} />
             <StatCard label="ATM Strike" value={analysis.atm_strike.toFixed(0)} />

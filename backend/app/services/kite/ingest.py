@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.futures_data import FuturesTick
 from app.models.india_vix import IndiaVix
+from app.models.option_chain import OptionChainSnapshot
 from app.models.option_ohlc import OptionOHLC
 from app.models.spot_ohlc import SpotOHLC
 
@@ -108,6 +109,46 @@ async def upsert_option_ohlc(
         rows,
         ["underlying", "strike", "expiry", "option_type", "interval", "datetime"],
         ["open", "high", "low", "close", "volume", "oi", "oi_change"],
+    )
+
+
+async def upsert_option_chain_snapshot(
+    db: AsyncSession,
+    underlying: str,
+    strike: float,
+    expiry: date,
+    option_type: str,
+    candles: list[dict],
+) -> int:
+    """Populates `option_chain` (the live-snapshot table the option-chain
+    API/UI reads from) from the same backfilled candles as `option_ohlc`,
+    one row per candle timestamp - so backfilled history is browsable
+    through the normal option-chain view, not just the latest live pull."""
+    rows = []
+    prev_oi = None
+    for c in sorted(candles, key=lambda c: c["date"]):
+        oi = c.get("oi", 0) or 0
+        rows.append(
+            {
+                "underlying": underlying,
+                "expiry": expiry,
+                "datetime": c["date"],
+                "strike": strike,
+                "option_type": option_type,
+                "ltp": c["close"],
+                "oi": oi,
+                "oi_change": 0 if prev_oi is None else oi - prev_oi,
+                "volume": c["volume"],
+            }
+        )
+        prev_oi = oi
+
+    return await _upsert(
+        db,
+        OptionChainSnapshot,
+        rows,
+        ["underlying", "expiry", "datetime", "strike", "option_type"],
+        ["ltp", "oi", "oi_change", "volume"],
     )
 
 

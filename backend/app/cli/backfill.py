@@ -30,6 +30,7 @@ from app.services.kite.historical import HistoricalDataService, iter_date_chunks
 from app.services.kite.ingest import (
     upsert_futures,
     upsert_india_vix,
+    upsert_option_chain_snapshot,
     upsert_option_ohlc,
     upsert_spot_ohlc,
 )
@@ -111,6 +112,10 @@ async def backfill_options(
                 total += await upsert_option_ohlc(
                     db, underlying, inst.strike, expiry, inst.instrument_type, interval, candles
                 )
+                # Also populate option_chain (the live-snapshot table the
+                # option-chain API/UI reads from) so backfilled history is
+                # browsable there too, not just via option_ohlc directly.
+                await upsert_option_chain_snapshot(db, underlying, inst.strike, expiry, inst.instrument_type, candles)
             logger.info("option_backfilled", tradingsymbol=inst.tradingsymbol, rows=total)
 
 

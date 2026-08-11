@@ -51,10 +51,16 @@ export const api = {
     return request<Trend>(`/market-data/trend?${query.toString()}`);
   },
 
-  optionChain: (underlying: string, expiry: string, spotPrice: number) =>
-    request<OptionChainAnalysis>(
-      `/option-chain/${encodeURIComponent(underlying)}/${expiry}?spot_price=${spotPrice}`,
-    ),
+  optionChainExpiries: (underlying: string) =>
+    request<string[]>(`/option-chain/${encodeURIComponent(underlying)}/expiries`),
+
+  optionChain: (underlying: string, expiry: string, spotPrice: number, asOf?: string) => {
+    const query = new URLSearchParams({ spot_price: String(spotPrice) });
+    if (asOf) query.set("as_of", asOf);
+    return request<OptionChainAnalysis>(
+      `/option-chain/${encodeURIComponent(underlying)}/${expiry}?${query.toString()}`,
+    );
+  },
 
   signals: (limit = 50) => request<TradeSignal[]>(`/signals?limit=${limit}`),
 

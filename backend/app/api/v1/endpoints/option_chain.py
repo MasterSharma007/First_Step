@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -18,22 +18,42 @@ from app.services.option_chain.analyzer import (
 router = APIRouter(prefix="/option-chain", tags=["option-chain"])
 
 
+@router.get("/{underlying}/expiries", response_model=list[date])
+async def list_expiries(underlying: str, db: AsyncSession = Depends(get_db)) -> list[date]:
+    """Expiries with at least one stored snapshot - lets a UI offer a real
+    picker instead of guessing a date that may 404."""
+    stmt = (
+        select(OptionChainSnapshot.expiry)
+        .where(OptionChainSnapshot.underlying == underlying)
+        .distinct()
+        .order_by(OptionChainSnapshot.expiry.asc())
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
 @router.get("/{underlying}/{expiry}", response_model=OptionChainAnalysis)
 async def get_option_chain_analysis(
     underlying: str,
     expiry: date,
     spot_price: float,
+    as_of: date | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> OptionChainAnalysis:
-    stmt = (
-        select(OptionChainSnapshot)
-        .where(OptionChainSnapshot.underlying == underlying, OptionChainSnapshot.expiry == expiry)
-        .order_by(OptionChainSnapshot.datetime_.desc())
+    """Without `as_of`, returns the latest stored snapshot. With `as_of`,
+    returns the latest snapshot at or before that date - lets historical
+    (backfilled) chains be browsed by day, not just the live one."""
+    stmt = select(OptionChainSnapshot).where(
+        OptionChainSnapshot.underlying == underlying, OptionChainSnapshot.expiry == expiry
     )
+    if as_of is not None:
+        stmt = stmt.where(OptionChainSnapshot.datetime_ < as_of + timedelta(days=1))
+    stmt = stmt.order_by(OptionChainSnapshot.datetime_.desc())
+
     result = await db.execute(stmt)
     all_rows = list(result.scalars().all())
     if not all_rows:
-        raise HTTPException(status_code=404, detail="No option chain data for this underlying/expiry")
+        raise HTTPException(status_code=404, detail="No option chain data for this underlying/expiry/date")
 
     latest_ts = all_rows[0].datetime_
     latest = [r for r in all_rows if r.datetime_ == latest_ts]

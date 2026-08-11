@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from app.services.backtesting.engine import BacktestEngine
+from app.services.market_analysis.indicators import vwap
 from app.services.option_chain.analyzer import StrikeRow, max_pain, put_call_ratio, writing_activity
 from app.services.risk_management.manager import RiskLimits, RiskManager
 from app.services.signal_engine.exit_rules import compute_exit_levels, trail_stop_loss
@@ -52,6 +53,39 @@ def test_writing_activity_detects_pe_writing(strike_rows):
     result = writing_activity(strike_rows, spot_price=48100)
     assert result["verdict"] == "PE_WRITING"
     assert result["pe_writing"] is True
+
+
+def test_vwap_handles_zero_volume_index_data():
+    # NIFTY BANK spot is an index - Kite's historical API always reports
+    # volume=0 for it, which used to blow up VWAP's divide-by-zero guard
+    # (NaN propagated into every downstream `>` comparison and crashed).
+    df = pd.DataFrame(
+        {
+            "high": [100.0, 101.0, 102.0],
+            "low": [98.0, 99.0, 100.0],
+            "close": [99.0, 100.0, 101.0],
+            "volume": [0, 0, 0],
+        }
+    )
+    result = vwap(df)
+    assert result.notna().all()
+    assert (result > 0).all()
+
+
+def test_signal_engine_handles_zero_volume_index_data(strike_rows):
+    df = pd.DataFrame(
+        {
+            "open": np.linspace(48000, 48500, 60),
+            "high": np.linspace(48010, 48510, 60),
+            "low": np.linspace(47990, 48490, 60),
+            "close": np.linspace(48005, 48505, 60),
+            "volume": 0,
+        },
+        index=pd.date_range("2026-01-01 09:15", periods=60, freq="5min"),
+    )
+    engine = SignalEngine()
+    decision = engine.evaluate(df, strike_rows, spot_price=float(df["close"].iloc[-1]), india_vix=13.5)
+    assert decision.signal_type in {"CE_ENTRY", "PE_ENTRY", "NO_TRADE"}
 
 
 def test_signal_engine_produces_ce_entry_on_bullish_setup(uptrend_df, strike_rows):

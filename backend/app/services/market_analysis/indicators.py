@@ -10,10 +10,16 @@ import pandas as pd
 
 
 def vwap(df: pd.DataFrame) -> pd.Series:
+    """Volume-weighted average price. Index instruments (e.g. NIFTY BANK
+    spot) always report zero volume from Kite - true VWAP is undefined
+    there, so bars with no cumulative volume fall back to the cumulative
+    mean typical price instead of propagating NaN into every downstream
+    comparison (which raises on truthiness checks)."""
     typical_price = (df["high"] + df["low"] + df["close"]) / 3
     cumulative_pv = (typical_price * df["volume"]).cumsum()
-    cumulative_vol = df["volume"].cumsum().replace(0, pd.NA)
-    return cumulative_pv / cumulative_vol
+    cumulative_vol = df["volume"].cumsum().replace(0, float("nan"))
+    volume_weighted = cumulative_pv / cumulative_vol
+    return volume_weighted.fillna(typical_price.expanding().mean())
 
 
 def ema(series: pd.Series, period: int) -> pd.Series:

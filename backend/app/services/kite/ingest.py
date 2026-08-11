@@ -23,10 +23,34 @@ from app.models.india_vix import IndiaVix
 from app.models.option_ohlc import OptionOHLC
 from app.models.spot_ohlc import SpotOHLC
 
+# Postgres/asyncpg caps a single statement at 32767 bound parameters. A
+# year of 5m candles alone is ~18k rows, so batching keeps every upsert
+# well under that regardless of how wide the row is.
+BATCH_SIZE = 1000
+
+
+async def _upsert(
+    db: AsyncSession,
+    model: type,
+    rows: list[dict],
+    index_elements: list[str],
+    update_columns: list[str],
+) -> int:
+    if not rows:
+        return 0
+    for i in range(0, len(rows), BATCH_SIZE):
+        batch = rows[i : i + BATCH_SIZE]
+        stmt = insert(model).values(batch)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=index_elements,
+            set_={col: stmt.excluded[col] for col in update_columns},
+        )
+        await db.execute(stmt)
+    await db.commit()
+    return len(rows)
+
 
 async def upsert_spot_ohlc(db: AsyncSession, symbol: str, interval: str, candles: list[dict]) -> int:
-    if not candles:
-        return 0
     rows = [
         {
             "symbol": symbol,
@@ -40,14 +64,9 @@ async def upsert_spot_ohlc(db: AsyncSession, symbol: str, interval: str, candles
         }
         for c in candles
     ]
-    stmt = insert(SpotOHLC).values(rows)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=["symbol", "interval", "datetime"],
-        set_={k: stmt.excluded[k] for k in ("open", "high", "low", "close", "volume")},
+    return await _upsert(
+        db, SpotOHLC, rows, ["symbol", "interval", "datetime"], ["open", "high", "low", "close", "volume"]
     )
-    await db.execute(stmt)
-    await db.commit()
-    return len(rows)
 
 
 async def upsert_option_ohlc(
@@ -59,8 +78,6 @@ async def upsert_option_ohlc(
     interval: str,
     candles: list[dict],
 ) -> int:
-    if not candles:
-        return 0
     rows = []
     prev_oi = None
     for c in sorted(candles, key=lambda c: c["date"]):
@@ -85,22 +102,16 @@ async def upsert_option_ohlc(
         )
         prev_oi = oi
 
-    stmt = insert(OptionOHLC).values(rows)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=["underlying", "strike", "expiry", "option_type", "interval", "datetime"],
-        set_={
-            k: stmt.excluded[k]
-            for k in ("open", "high", "low", "close", "volume", "oi", "oi_change")
-        },
+    return await _upsert(
+        db,
+        OptionOHLC,
+        rows,
+        ["underlying", "strike", "expiry", "option_type", "interval", "datetime"],
+        ["open", "high", "low", "close", "volume", "oi", "oi_change"],
     )
-    await db.execute(stmt)
-    await db.commit()
-    return len(rows)
 
 
 async def upsert_futures(db: AsyncSession, underlying: str, expiry: date, candles: list[dict]) -> int:
-    if not candles:
-        return 0
     rows = []
     prev_oi = None
     for c in sorted(candles, key=lambda c: c["date"]):
@@ -118,25 +129,9 @@ async def upsert_futures(db: AsyncSession, underlying: str, expiry: date, candle
         )
         prev_oi = oi
 
-    stmt = insert(FuturesTick).values(rows)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=["underlying", "expiry", "datetime"],
-        set_={k: stmt.excluded[k] for k in ("ltp", "oi", "oi_change", "volume")},
-    )
-    await db.execute(stmt)
-    await db.commit()
-    return len(rows)
+    return await _upsert(db, FuturesTick, rows, ["underlying", "expiry", "datetime"], ["ltp", "oi", "oi_change", "volume"])
 
 
 async def upsert_india_vix(db: AsyncSession, interval: str, candles: list[dict]) -> int:
-    if not candles:
-        return 0
     rows = [{"interval": interval, "datetime": c["date"], "value": c["close"]} for c in candles]
-    stmt = insert(IndiaVix).values(rows)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=["interval", "datetime"],
-        set_={"value": stmt.excluded.value},
-    )
-    await db.execute(stmt)
-    await db.commit()
-    return len(rows)
+    return await _upsert(db, IndiaVix, rows, ["interval", "datetime"], ["value"])

@@ -80,3 +80,33 @@ class MultiTimeframeOut(BaseModel):
     symbol: str
     current_price: float
     timeframes: list[TimeframeReadingOut]
+
+
+class CandleBreakOut(BaseModel):
+    direction: str | None  # "UP", "DOWN", or None
+    reference_high: float
+    reference_low: float
+    reference_time: str
+
+
+class SwingPointOut(BaseModel):
+    kind: str  # HH, LH, HL, LL
+    price: float
+    time: str
+
+
+class PriceActionReadingOut(BaseModel):
+    timeframe: str  # 5m, 15m
+    current_price: float
+    candle_break: CandleBreakOut | None = None
+    sr_break: str | None = None  # "SUPPORT_BREAK", "RESISTANCE_BREAK", or None
+    support: float | None = None
+    resistance: float | None = None
+    swing_points: list[SwingPointOut] = []
+    structure: str | None = None  # kind of the most recent confirmed swing point
+
+
+class PriceActionOut(BaseModel):
+    symbol: str
+    current_price: float
+    timeframes: list[PriceActionReadingOut]

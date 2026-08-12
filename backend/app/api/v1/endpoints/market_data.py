@@ -9,9 +9,19 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.option_chain import OptionChainSnapshot
 from app.models.spot_ohlc import SpotOHLC
-from app.schemas.market_data import MultiTimeframeOut, SpotOHLCOut, TimeframeReadingOut, TrendOut
+from app.schemas.market_data import (
+    CandleBreakOut,
+    MultiTimeframeOut,
+    PriceActionOut,
+    PriceActionReadingOut,
+    SpotOHLCOut,
+    SwingPointOut,
+    TimeframeReadingOut,
+    TrendOut,
+)
 from app.services.market_analysis import indicators as ind
 from app.services.market_analysis.multi_timeframe import analyze_timeframe, resample_ohlc
+from app.services.market_analysis.price_action import analyze_price_action
 from app.services.market_analysis.trend import detect_trend
 from app.services.option_chain.analyzer import StrikeRow, writing_activity
 
@@ -185,6 +195,55 @@ async def get_multi_timeframe(symbol: str = "NIFTY BANK", db: AsyncSession = Dep
                 resistance=r.resistance,
                 direction=r.direction,
                 reasons=r.reasons,
+            )
+            for r in readings
+        ],
+    )
+
+
+@router.get("/price-action", response_model=PriceActionOut)
+async def get_price_action(symbol: str = "NIFTY BANK", db: AsyncSession = Depends(get_db)) -> PriceActionOut:
+    """5m/15m candle breakout/breakdown, support/resistance breaks, and
+    swing-point market structure (HH/LH/HL/LL) - see price_action.py.
+    Meant to be polled every few seconds for a dedicated price-action tab,
+    separate from the higher-timeframe /multi-timeframe read."""
+    df_5m = await _spot_df(db, symbol, "5m", 500)
+    df_15m = await _spot_df(db, symbol, "15m", 500)
+    if df_5m.empty and df_15m.empty:
+        raise HTTPException(
+            status_code=422,
+            detail="No spot_ohlc history at all - run `uv run backfill spot` first.",
+        )
+
+    current_price = float((df_5m if not df_5m.empty else df_15m)["close"].iloc[-1])
+
+    readings = []
+    for timeframe, df in (("5m", df_5m), ("15m", df_15m)):
+        if df.empty:
+            continue
+        support, resistance = ind.support_resistance(df, lookback=min(20, len(df)))
+        readings.append(analyze_price_action(df, timeframe, current_price, support, resistance))
+
+    return PriceActionOut(
+        symbol=symbol,
+        current_price=current_price,
+        timeframes=[
+            PriceActionReadingOut(
+                timeframe=r.timeframe,
+                current_price=r.current_price,
+                candle_break=CandleBreakOut(
+                    direction=r.candle_break.direction,
+                    reference_high=r.candle_break.reference_high,
+                    reference_low=r.candle_break.reference_low,
+                    reference_time=r.candle_break.reference_time,
+                )
+                if r.candle_break
+                else None,
+                sr_break=r.sr_break,
+                support=r.support,
+                resistance=r.resistance,
+                swing_points=[SwingPointOut(kind=p.kind, price=p.price, time=p.time) for p in r.swing_points],
+                structure=r.structure,
             )
             for r in readings
         ],

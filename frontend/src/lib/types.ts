@@ -178,6 +178,38 @@ export interface MultiTimeframe {
   timeframes: TimeframeReading[];
 }
 
+export interface CandleBreak {
+  direction: "UP" | "DOWN" | null;
+  reference_high: number;
+  reference_low: number;
+  reference_time: string;
+}
+
+export type SwingKind = "HH" | "LH" | "HL" | "LL";
+
+export interface SwingPoint {
+  kind: SwingKind;
+  price: number;
+  time: string;
+}
+
+export interface PriceActionReading {
+  timeframe: string; // 5m, 15m
+  current_price: number;
+  candle_break: CandleBreak | null;
+  sr_break: "SUPPORT_BREAK" | "RESISTANCE_BREAK" | null;
+  support: number | null;
+  resistance: number | null;
+  swing_points: SwingPoint[];
+  structure: SwingKind | null;
+}
+
+export interface PriceAction {
+  symbol: string;
+  current_price: number;
+  timeframes: PriceActionReading[];
+}
+
 export interface LogEntry {
   timestamp: string | null;
   level: string;

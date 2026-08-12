@@ -6,6 +6,7 @@ import type {
   LogEntry,
   MultiTimeframe,
   OptionChainAnalysis,
+  PriceAction,
   SpotOHLC,
   TradeExecution,
   TradeSignal,
@@ -56,6 +57,9 @@ export const api = {
 
   multiTimeframe: (symbol = "NIFTY BANK") =>
     request<MultiTimeframe>(`/market-data/multi-timeframe?symbol=${encodeURIComponent(symbol)}`),
+
+  priceAction: (symbol = "NIFTY BANK") =>
+    request<PriceAction>(`/market-data/price-action?symbol=${encodeURIComponent(symbol)}`),
 
   optionChainExpiries: (underlying: string) =>
     request<string[]>(`/option-chain/${encodeURIComponent(underlying)}/expiries`),

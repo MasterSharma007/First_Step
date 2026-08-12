@@ -27,6 +27,7 @@ class Instrument:
     strike: float
     expiry: date | None
     name: str
+    lot_size: int
 
 
 def _to_instrument(row: dict) -> Instrument:
@@ -40,6 +41,7 @@ def _to_instrument(row: dict) -> Instrument:
         strike=float(row.get("strike") or 0),
         expiry=expiry,
         name=row.get("name", ""),
+        lot_size=int(row.get("lot_size") or 1),
     )
 
 

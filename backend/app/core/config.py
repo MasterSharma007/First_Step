@@ -34,10 +34,16 @@ class Settings(BaseSettings):
     trading_exchange: str = "NFO"
     nfo_underlying: str = "BANKNIFTY"  # NFO futures/options `name` field differs from the spot symbol
     paper_trading: bool = True
+    paper_trading_capital: float = 100000.0
+    risk_per_trade_pct: float = 1.0
     max_daily_loss: float = 10000.0
     max_trade_loss: float = 2000.0
     max_open_positions: int = 2
     risk_reward_ratio: float = 2.0
+
+    # Live loop
+    live_loop_enabled: bool = False
+    live_loop_interval_seconds: int = 30
 
     # Signal thresholds (see SRD §6, §8)
     ce_signal_score_threshold: float = 70.0

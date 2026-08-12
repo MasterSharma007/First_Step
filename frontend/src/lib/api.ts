@@ -4,6 +4,7 @@ import type {
   DailyReport,
   LiveStatus,
   LogEntry,
+  MultiTimeframe,
   OptionChainAnalysis,
   SpotOHLC,
   TradeExecution,
@@ -52,6 +53,9 @@ export const api = {
     if (params.interval) query.set("interval", params.interval);
     return request<Trend>(`/market-data/trend?${query.toString()}`);
   },
+
+  multiTimeframe: (symbol = "NIFTY BANK") =>
+    request<MultiTimeframe>(`/market-data/multi-timeframe?symbol=${encodeURIComponent(symbol)}`),
 
   optionChainExpiries: (underlying: string) =>
     request<string[]>(`/option-chain/${encodeURIComponent(underlying)}/expiries`),

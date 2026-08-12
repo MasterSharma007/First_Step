@@ -37,6 +37,7 @@ async def _aggregate_tick() -> None:
     async with async_session_factory() as db:
         try:
             await aggregate_current_spot_bar(db, settings.trading_symbol, "5m")
+            await aggregate_current_spot_bar(db, settings.trading_symbol, "15m")
             await aggregate_current_vix_bar(db, "1m")
         except Exception:
             logger.exception("live_aggregation_failed")

@@ -1,7 +1,12 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
 import EmptyState from "@/components/EmptyState";
 import StatCard from "@/components/StatCard";
-import { api, ApiError } from "@/lib/api";
-import type { SpotOHLC } from "@/lib/types";
+import { ApiError, api } from "@/lib/api";
+import { usePolling } from "@/lib/usePolling";
+import type { OptionChainAnalysis } from "@/lib/types";
 
 // option_chain/option_ohlc are stored under the NFO underlying name
 // (e.g. "BANKNIFTY"), which differs from the NSE spot symbol
@@ -9,54 +14,70 @@ import type { SpotOHLC } from "@/lib/types";
 const NFO_UNDERLYING = "BANKNIFTY";
 const SPOT_SYMBOL = "NIFTY BANK";
 
-export default async function OptionChainPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ expiry?: string; spot?: string; as_of?: string }>;
-}) {
-  const params = await searchParams;
+const LIVE_POLL_MS = 5000; // matches the backend's live tick-aggregation cadence
+const HISTORICAL_POLL_MS = 24 * 60 * 60 * 1000; // as_of is a fixed date - nothing to re-poll
 
-  const [expiries, latestSpot] = await Promise.all([
-    api.optionChainExpiries(NFO_UNDERLYING).catch((): string[] => []),
+export default function OptionChainPage() {
+  const [expiries, setExpiries] = useState<string[]>([]);
+  const [expiriesLoaded, setExpiriesLoaded] = useState(false);
+  const [expiry, setExpiry] = useState("");
+  const [asOf, setAsOf] = useState("");
+
+  useEffect(() => {
     api
-      .spotOhlc({ symbol: SPOT_SYMBOL, interval: "1d", limit: 1 })
-      .catch((): SpotOHLC[] => [])
-      .then((rows) => rows.at(-1)?.close),
-  ]);
+      .optionChainExpiries(NFO_UNDERLYING)
+      .then((rows) => {
+        setExpiries(rows);
+        setExpiry((current) => current || rows[0] || "");
+      })
+      .catch(() => setExpiries([]))
+      .finally(() => setExpiriesLoaded(true));
+  }, []);
 
-  const expiry = params.expiry ?? expiries[0];
-  const spotPrice = Number(params.spot ?? latestSpot ?? 0);
-  const asOf = params.as_of;
+  const fetchAnalysis = useCallback(async (): Promise<OptionChainAnalysis | null> => {
+    if (!expiry) return null;
+    const spotRows = await api.spotOhlc({ symbol: SPOT_SYMBOL, interval: asOf ? "1d" : "5m", limit: 1 });
+    const spotPrice = spotRows.at(-1)?.close;
+    if (!spotPrice) return null;
+    return api.optionChain(NFO_UNDERLYING, expiry, spotPrice, asOf || undefined).catch((err) => {
+      if (err instanceof ApiError) return null;
+      throw err;
+    });
+  }, [expiry, asOf]);
 
-  const analysis =
-    expiry && spotPrice > 0
-      ? await api.optionChain(NFO_UNDERLYING, expiry, spotPrice, asOf).catch((err) => {
-          if (err instanceof ApiError) return null;
-          throw err;
-        })
-      : null;
+  const { data: analysis, loading } = usePolling(fetchAnalysis, asOf ? HISTORICAL_POLL_MS : LIVE_POLL_MS);
+  const hasExpiries = expiriesLoaded && expiries.length > 0;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-black">Option Chain</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          {NFO_UNDERLYING} · PCR, Max Pain, and OI writing activity.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-black">Option Chain</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            {NFO_UNDERLYING} · PCR, Max Pain, and OI writing activity
+            {!asOf && ` - refreshes every ${LIVE_POLL_MS / 1000}s`}.
+          </p>
+        </div>
+        {analysis && (
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span className={`h-2 w-2 rounded-full ${loading ? "bg-amber-500" : "bg-green-600"} animate-pulse`} />
+            as of {new Date(analysis.as_of).toLocaleString()}
+          </div>
+        )}
       </div>
 
-      {expiries.length === 0 ? (
+      {expiriesLoaded && expiries.length === 0 ? (
         <EmptyState
           title="No option chain data at all"
           hint="Run `uv run backfill options` first (see backend/app/cli/backfill.py)."
         />
       ) : (
-        <form className="flex flex-wrap items-end gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-end gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <label className="flex flex-col gap-1 text-xs text-slate-500">
             Expiry
             <select
-              name="expiry"
-              defaultValue={expiry}
+              value={expiry}
+              onChange={(e) => setExpiry(e.target.value)}
               className="rounded border border-slate-300 bg-white px-2 py-1 text-sm text-black"
             >
               {expiries.map((e) => (
@@ -67,32 +88,39 @@ export default async function OptionChainPage({
             </select>
           </label>
           <label className="flex flex-col gap-1 text-xs text-slate-500">
-            As of date (blank = latest)
+            As of date (blank = live)
             <input
               type="date"
-              name="as_of"
-              defaultValue={asOf ?? ""}
+              value={asOf}
+              onChange={(e) => setAsOf(e.target.value)}
               className="rounded border border-slate-300 bg-white px-2 py-1 text-sm text-black"
             />
           </label>
-          <button
-            type="submit"
-            className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            View
-          </button>
-        </form>
+          {asOf && (
+            <button
+              type="button"
+              onClick={() => setAsOf("")}
+              className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Back to live
+            </button>
+          )}
+        </div>
       )}
 
-      {!analysis ? (
+      {!analysis && hasExpiries && (
         <EmptyState
-          title="No option chain snapshot found"
-          hint="Try a different expiry or date - only backfilled/live-ingested points are available."
+          title={loading ? "Loading option chain…" : "No option chain snapshot found"}
+          hint={
+            loading
+              ? undefined
+              : "Try a different expiry or date - only backfilled/live-ingested points are available."
+          }
         />
-      ) : (
-        <>
-          <p className="text-xs text-slate-500">Snapshot as of {new Date(analysis.as_of).toLocaleString()}</p>
+      )}
 
+      {analysis && (
+        <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <StatCard label="Spot" value={analysis.spot_price.toFixed(2)} />
             <StatCard label="ATM Strike" value={analysis.atm_strike.toFixed(0)} />

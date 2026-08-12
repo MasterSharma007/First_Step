@@ -64,3 +64,19 @@ class TrendOut(BaseModel):
     support: float
     resistance: float
     current_price: float
+
+
+class TimeframeReadingOut(BaseModel):
+    timeframe: str  # 15m, 1h, 1d, 1w, 1M
+    bars_available: int
+    insufficient_data: bool
+    support: float | None = None
+    resistance: float | None = None
+    direction: str | None = None  # BULLISH, BEARISH, NEUTRAL - None if insufficient_data
+    reasons: list[str] | None = None
+
+
+class MultiTimeframeOut(BaseModel):
+    symbol: str
+    current_price: float
+    timeframes: list[TimeframeReadingOut]

@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.market_tick import MarketTick
 from app.services.kite.ingest import upsert_india_vix, upsert_spot_ohlc
 
-INTERVAL_SECONDS = {"1m": 60, "5m": 300}
+INTERVAL_SECONDS = {"1m": 60, "5m": 300, "15m": 900}
 
 
 def _bucket_start(as_of: datetime, interval: str) -> datetime:

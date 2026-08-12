@@ -162,6 +162,22 @@ export interface LiveStatus {
   live_loop_enabled: boolean;
 }
 
+export interface TimeframeReading {
+  timeframe: string; // 15m, 1h, 1d, 1w, 1M
+  bars_available: number;
+  insufficient_data: boolean;
+  support: number | null;
+  resistance: number | null;
+  direction: TrendDirection | null;
+  reasons: string[] | null;
+}
+
+export interface MultiTimeframe {
+  symbol: string;
+  current_price: number;
+  timeframes: TimeframeReading[];
+}
+
 export interface LogEntry {
   timestamp: string | null;
   level: string;

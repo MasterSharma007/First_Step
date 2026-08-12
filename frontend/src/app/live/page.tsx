@@ -1,6 +1,7 @@
 "use client";
 
 import EmptyState from "@/components/EmptyState";
+import MultiTimeframePanel from "@/components/MultiTimeframePanel";
 import SignalSuggestionCard from "@/components/SignalSuggestionCard";
 import StatCard from "@/components/StatCard";
 import TrendCard from "@/components/TrendCard";
@@ -8,9 +9,11 @@ import { ApiError, api } from "@/lib/api";
 import { usePolling } from "@/lib/usePolling";
 
 const POLL_MS = 5000; // matches the backend's live tick-aggregation cadence
+const MTF_POLL_MS = 15000; // 15m/1h/1d/1w/1M candles don't move fast enough to justify 5s polling
 
 export default function LivePage() {
   const { data: status, error, loading } = usePolling(() => api.liveStatus(), POLL_MS);
+  const { data: multiTimeframe } = usePolling(() => api.multiTimeframe(), MTF_POLL_MS);
 
   return (
     <div className="space-y-6">
@@ -69,6 +72,8 @@ export default function LivePage() {
             />
             <SignalSuggestionCard signal={status.signal} />
           </div>
+
+          {multiTimeframe && <MultiTimeframePanel data={multiTimeframe} />}
 
           <section>
             <div className="mb-3 flex items-center justify-between">

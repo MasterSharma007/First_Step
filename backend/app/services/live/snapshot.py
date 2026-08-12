@@ -23,6 +23,7 @@ from app.models.spot_ohlc import SpotOHLC
 from app.services.kite.client import KiteClient
 from app.services.kite.instruments import InstrumentResolver
 from app.services.kite.live_quote import fetch_ltp, fetch_quotes, option_chain_from_quotes
+from app.services.live.oi_tracking import enrich_and_maybe_persist_oi_change
 from app.services.market_analysis import indicators as ind
 from app.services.market_analysis.trend import TrendReading, detect_trend
 from app.services.option_chain.analyzer import (
@@ -104,6 +105,7 @@ async def compute_live_snapshot(
 ) -> LiveSnapshot | None:
     """Returns None if there isn't enough spot history yet (needs >= 50
     bars, same floor as GET /market-data/trend) - run the backfill first."""
+    as_of = datetime.now(UTC)
     spot_price = fetch_ltp(client, "NSE", settings.trading_symbol)
 
     df = await _load_spot_df(db, settings.trading_symbol, spot_price)
@@ -125,6 +127,7 @@ async def compute_live_snapshot(
         nearest = sorted(option_instruments, key=lambda i: abs(i.strike - spot_price))[: NEAR_ATM_STRIKES * 2]
         quotes = fetch_quotes(client, nearest)
         chain = option_chain_from_quotes(nearest, quotes)
+        chain = await enrich_and_maybe_persist_oi_change(db, settings.nfo_underlying, expiry, as_of, chain)
 
     ce_writing = pe_writing = False
     pcr = max_pain_value = atm = oi_signal = None
@@ -155,7 +158,7 @@ async def compute_live_snapshot(
             stop_loss, target = levels.stop_loss, levels.target
 
     return LiveSnapshot(
-        as_of=datetime.now(UTC),
+        as_of=as_of,
         spot_price=spot_price,
         trend=trend,
         support=support,

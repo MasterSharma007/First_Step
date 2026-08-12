@@ -22,6 +22,33 @@ def compute_exit_levels(
     return ExitLevels(stop_loss=round(stop_loss, 2), target=round(target, 2))
 
 
+ATM_DELTA_APPROX = 0.5  # rough near-ATM option delta - premium moves roughly
+# half as many points as the underlying. Good enough for a target cap since
+# this system only ever trades the ATM strike (see live/snapshot.py); not a
+# real Greek (would need IV/time-to-expiry for that).
+
+
+def sr_capped_target(
+    entry_price: float,
+    rr_target: float,
+    spot_price: float,
+    sr_level: float,
+    option_type: str,
+) -> float:
+    """Caps the flat risk:reward target at whatever the option premium would
+    be if spot reached the nearest resistance (for a CE) or support (for a
+    PE), so the plan never expects a bigger spot move than the level in
+    front of it. If spot has already broken through `sr_level` there's no
+    ceiling left to cap against, so the flat RR target is used unchanged.
+    """
+    spot_headroom = (sr_level - spot_price) if option_type == "CE" else (spot_price - sr_level)
+    if spot_headroom <= 0:
+        return rr_target
+
+    sr_target = round(entry_price + spot_headroom * ATM_DELTA_APPROX, 2)
+    return min(rr_target, sr_target)
+
+
 def stop_loss_from_previous_candle(previous_candle_low: float, buffer_points: float = 0.0) -> float:
     return round(previous_candle_low - buffer_points, 2)
 

@@ -16,7 +16,11 @@ from app.services.option_chain.analyzer import (
     writing_activity,
 )
 from app.services.risk_management.manager import RiskLimits, RiskManager
-from app.services.signal_engine.exit_rules import compute_exit_levels, trail_stop_loss
+from app.services.signal_engine.exit_rules import (
+    compute_exit_levels,
+    sr_capped_target,
+    trail_stop_loss,
+)
 from app.services.signal_engine.scorer import SignalEngine
 
 
@@ -135,6 +139,31 @@ def test_exit_levels_respect_risk_reward():
     levels = compute_exit_levels(entry_price=250, stop_loss_points=20, risk_reward_ratio=2.0)
     assert levels.stop_loss == 230
     assert levels.target == 290.0
+
+
+def test_sr_capped_target_caps_ce_target_at_resistance():
+    # Flat RR target (845.59) is far past what spot reaching resistance
+    # would imply for the premium (~0.5 delta approximation).
+    capped = sr_capped_target(entry_price=650.45, rr_target=845.59, spot_price=57500, sr_level=57560, option_type="CE")
+    assert capped == pytest.approx(650.45 + (57560 - 57500) * 0.5)
+    assert capped < 845.59
+
+
+def test_sr_capped_target_caps_pe_target_at_support():
+    capped = sr_capped_target(entry_price=400, rr_target=480, spot_price=57500, sr_level=57440, option_type="PE")
+    assert capped == pytest.approx(400 + (57500 - 57440) * 0.5)
+    assert capped < 480
+
+
+def test_sr_capped_target_falls_back_to_rr_target_when_level_already_broken():
+    # Spot already past resistance - no ceiling left to cap against.
+    capped = sr_capped_target(entry_price=650.45, rr_target=845.59, spot_price=57600, sr_level=57560, option_type="CE")
+    assert capped == 845.59
+
+
+def test_sr_capped_target_never_exceeds_rr_target_even_with_huge_headroom():
+    capped = sr_capped_target(entry_price=650.45, rr_target=845.59, spot_price=57500, sr_level=60000, option_type="CE")
+    assert capped == 845.59
 
 
 def test_trailing_stop_never_moves_backward():

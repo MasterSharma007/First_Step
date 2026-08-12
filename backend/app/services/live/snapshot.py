@@ -33,7 +33,11 @@ from app.services.option_chain.analyzer import (
     put_call_ratio,
     writing_activity,
 )
-from app.services.signal_engine.exit_rules import compute_exit_levels, stop_loss_from_percentage
+from app.services.signal_engine.exit_rules import (
+    compute_exit_levels,
+    sr_capped_target,
+    stop_loss_from_percentage,
+)
 from app.services.signal_engine.scorer import SignalDecision, SignalEngine
 
 logger = get_logger(__name__)
@@ -162,7 +166,9 @@ async def compute_live_snapshot(
         if entry_price is not None:
             sl_price = stop_loss_from_percentage(entry_price, STOP_LOSS_PCT)
             levels = compute_exit_levels(entry_price, entry_price - sl_price, settings.risk_reward_ratio)
-            stop_loss, target = levels.stop_loss, levels.target
+            stop_loss = levels.stop_loss
+            sr_level = resistance if suggested_option_type == "CE" else support
+            target = sr_capped_target(entry_price, levels.target, spot_price, sr_level, suggested_option_type)
 
     return LiveSnapshot(
         as_of=as_of,

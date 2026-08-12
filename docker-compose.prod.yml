@@ -1,0 +1,76 @@
+name: banknifty-platform
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bn_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bn_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a real password in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-banknifty}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bn_user} -d ${POSTGRES_DB:-banknifty}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # No host port published - only `backend` needs to reach it, over the
+    # compose network. Keeps the DB off the public internet entirely.
+
+  redis:
+    image: redis:7-alpine
+    container_name: bn_redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # RabbitMQ is deliberately dropped here - grep confirms nothing in
+    # app/ actually connects to it (config.py declares the setting, no
+    # caller uses it), so it would just burn RAM on a small EC2 box for
+    # nothing. Redis IS used (tick pub/sub - app/core/redis.py).
+
+  backend:
+    build:
+      context: ./backend
+    container_name: bn_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-bn_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-banknifty}
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "127.0.0.1:${BACKEND_HOST_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # IMPORTANT: exactly one backend replica/worker. The live paper-trading
+    # scheduler (app/workers/scheduler.py) runs in-process - a second
+    # instance or extra uvicorn worker would run the live loop twice and
+    # double-open every paper trade. Do not add `deploy.replicas` or
+    # `--workers` here.
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
+    container_name: bn_frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    # Only `backend` and `frontend` bind to 127.0.0.1 (not 0.0.0.0) - both
+    # sit behind the Nginx reverse proxy set up in AWS_DEPLOYMENT.md, which
+    # is the only thing that should be reachable from the public internet.
+
+volumes:
+  pgdata:

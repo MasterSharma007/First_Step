@@ -13,7 +13,8 @@ the moment the backend boots.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,8 +32,17 @@ from app.services.signal_engine.exit_rules import stop_loss_from_percentage, tra
 from app.services.signal_engine.scorer import SignalEngine
 
 TRAIL_STEP_PCT = 0.05  # matches BacktestEngine's default
+IST = ZoneInfo("Asia/Kolkata")
 
 logger = get_logger(__name__)
+
+
+def _is_past_square_off(as_of: datetime, square_off_time: str) -> bool:
+    """`square_off_time` is "HH:MM" in IST (e.g. "15:38") - NSE trading
+    hours are always quoted in IST regardless of what timezone the server
+    runs in, so `as_of` (UTC) is converted before comparing."""
+    hour, minute = (int(part) for part in square_off_time.split(":"))
+    return as_of.astimezone(IST).time() >= time(hour, minute)
 
 
 async def _open_positions(db: AsyncSession) -> list[TradeExecution]:
@@ -53,18 +63,33 @@ async def _daily_realized_pnl(db: AsyncSession) -> float:
     return sum(float(r.pnl or 0) for r in rows)
 
 
-async def _check_exits(db: AsyncSession, client: KiteClient, positions: list[TradeExecution]) -> None:
+async def _check_exits(
+    db: AsyncSession, client: KiteClient, positions: list[TradeExecution], force_close: bool = False
+) -> None:
     """Trails the stop once a position is in profit, locking in gains if
     price pulls back before reaching target. The target still caps the
     trade - matches BacktestEngine's `_check_exit`, which explains why an
     uncapped version is unsafe (see its docstring); live polls far more
     often than the backtest's daily option snapshots so the argument is
-    weaker here, but kept consistent until there's real evidence either way."""
+    weaker here, but kept consistent until there's real evidence either way.
+
+    `force_close=True` (past `eod_square_off_time`) skips stop/target/trail
+    entirely and exits every position at the current market price - no
+    carrying option positions overnight on a paper "intraday" strategy."""
     for position in positions:
         try:
             ltp = fetch_ltp(client, "NFO", position.symbol)
         except Exception as exc:  # noqa: BLE001 - one bad quote shouldn't stop the whole cycle
             logger.warning("live_exit_quote_failed", symbol=position.symbol, error=str(exc))
+            continue
+
+        if force_close:
+            position.status = TradeStatus.CLOSED
+            position.exit_time = datetime.now(UTC)
+            position.exit_price = ltp
+            position.pnl = round((ltp - float(position.entry_price)) * position.quantity, 2)
+            position.exit_reason = "EOD_SQUAREOFF"
+            logger.info("paper_position_closed", symbol=position.symbol, reason="EOD_SQUAREOFF", pnl=position.pnl)
             continue
 
         entry_price = float(position.entry_price)
@@ -198,14 +223,22 @@ async def run_live_cycle(
     """One iteration: check/close existing paper positions against live
     prices, then consider opening a new one if the Signal Engine currently
     says so and risk limits allow it. Returns the snapshot it computed
-    (also useful for callers like `/live/status` that want the same read)."""
+    (also useful for callers like `/live/status` that want the same read).
+
+    At/after `settings.eod_square_off_time` (IST), every open position is
+    force-closed at market price and no new one is opened this cycle -
+    matches how a real intraday desk squares off before close."""
     snapshot = await compute_live_snapshot(db, client, resolver, settings, signal_engine)
     if snapshot is None:
         logger.warning("live_cycle_skipped_insufficient_history")
         return None
 
+    force_close = _is_past_square_off(datetime.now(UTC), settings.eod_square_off_time)
     open_positions = await _open_positions(db)
-    await _check_exits(db, client, open_positions)
+    await _check_exits(db, client, open_positions, force_close=force_close)
+
+    if force_close:
+        return snapshot
 
     remaining_open = await _open_positions(db)
     risk_manager = RiskManager(

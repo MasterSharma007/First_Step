@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     # Live loop
     live_loop_enabled: bool = False
     live_loop_interval_seconds: int = 10
+    eod_square_off_time: str = "15:38"  # HH:MM, IST - force-close every open paper position at/after this time
 
     # Signal thresholds (see SRD §6, §8)
     ce_signal_score_threshold: float = 70.0

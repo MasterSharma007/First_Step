@@ -111,6 +111,56 @@ def writing_activity(rows: list[StrikeRow], near_strikes: int = 5, spot_price: f
     }
 
 
+# Directional read per side. CE build-up is bullish (fresh call buying),
+# PE build-up is bearish (fresh put buying) - puts and calls point opposite
+# ways for the *underlying's* direction even though the classification
+# itself (comparing an instrument's own price move to its own OI move) is
+# symmetric.
+_CE_BUILDUP_BIAS = {
+    "LONG_BUILD_UP": 1.0,
+    "SHORT_COVERING": 0.5,
+    "SHORT_BUILD_UP": -1.0,
+    "LONG_UNWINDING": -0.5,
+    "NEUTRAL": 0.0,
+}
+_PE_BUILDUP_BIAS = {
+    "LONG_BUILD_UP": -1.0,
+    "SHORT_COVERING": -0.5,
+    "SHORT_BUILD_UP": 1.0,
+    "LONG_UNWINDING": 0.5,
+    "NEUTRAL": 0.0,
+}
+
+
+def atm_oi_buildup_bias(
+    chain: list[StrikeRow], previous_chain: list[StrikeRow] | None, spot_price: float
+) -> float:
+    """Net directional bias in [-1, 1] from classifying the ATM strike's
+    own CE and PE build-up (`classify_oi_buildup`, price change of the
+    *option's own premium* vs. its own OI change) - a real per-instrument
+    read, not the crude "which side has more aggregate OI change" of
+    `writing_activity`. Needs a previous poll/bar's chain to know premium
+    change; returns 0.0 (no opinion) if that isn't available yet."""
+    if not chain or previous_chain is None:
+        return 0.0
+
+    strike = atm_strike(chain, spot_price)
+    current = next((r for r in chain if r.strike == strike), None)
+    previous = next((r for r in previous_chain if r.strike == strike), None)
+    if current is None or previous is None:
+        return 0.0
+
+    biases = []
+    if current.ce_ltp > 0 and previous.ce_ltp > 0:
+        ce_state = classify_oi_buildup(current.ce_ltp - previous.ce_ltp, current.ce_oi_change)
+        biases.append(_CE_BUILDUP_BIAS[ce_state])
+    if current.pe_ltp > 0 and previous.pe_ltp > 0:
+        pe_state = classify_oi_buildup(current.pe_ltp - previous.pe_ltp, current.pe_oi_change)
+        biases.append(_PE_BUILDUP_BIAS[pe_state])
+
+    return sum(biases) / len(biases) if biases else 0.0
+
+
 def pcr_bias(pcr: float, bullish_above: float = 1.2, bearish_below: float = 0.8) -> str:
     """Conventional PCR read: high PCR (more puts written) => bullish, and
     vice versa - contrarian to raw put/call volume."""

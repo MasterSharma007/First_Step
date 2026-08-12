@@ -41,7 +41,18 @@ def trail_stop_loss(
     trail_step_points: float = 10.0,
 ) -> float:
     """Move SL to cost once in profit, then trail every `trail_step_points`
-    beyond that (SRD §7)."""
+    beyond that (SRD §7).
+
+    Tried requiring a full trail_step of profit before engaging (theory:
+    instant breakeven-snap on noisy 5m data turns routine wiggle into
+    realized small losses). Backtest evidence said otherwise: win rate
+    improved (17.78% -> 26.67% on the same range) but net P&L got *worse*
+    (-27,878 -> -57,771) and profit factor dropped (0.67 -> 0.52) - the
+    early snap was cutting losers small; removing it let them develop into
+    bigger losses before the wider stop caught them. Reverted. Recorded
+    here so the same "improvement" doesn't get re-tried without re-testing
+    against real data first.
+    """
     if current_price <= entry_price:
         return current_stop_loss
 

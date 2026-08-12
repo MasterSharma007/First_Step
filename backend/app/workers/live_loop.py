@@ -25,9 +25,12 @@ from app.models.trade_signal import SignalType, TradeSignal
 from app.services.kite.client import KiteClient
 from app.services.kite.instruments import InstrumentResolver
 from app.services.kite.live_quote import fetch_ltp
-from app.services.live.snapshot import LiveSnapshot, compute_live_snapshot
+from app.services.live.snapshot import STOP_LOSS_PCT, LiveSnapshot, compute_live_snapshot
 from app.services.risk_management.manager import RiskLimits, RiskManager
+from app.services.signal_engine.exit_rules import stop_loss_from_percentage, trail_stop_loss
 from app.services.signal_engine.scorer import SignalEngine
+
+TRAIL_STEP_PCT = 0.05  # matches BacktestEngine's default
 
 logger = get_logger(__name__)
 
@@ -51,6 +54,12 @@ async def _daily_realized_pnl(db: AsyncSession) -> float:
 
 
 async def _check_exits(db: AsyncSession, client: KiteClient, positions: list[TradeExecution]) -> None:
+    """Trails the stop once a position is in profit, locking in gains if
+    price pulls back before reaching target. The target still caps the
+    trade - matches BacktestEngine's `_check_exit`, which explains why an
+    uncapped version is unsafe (see its docstring); live polls far more
+    often than the backtest's daily option snapshots so the argument is
+    weaker here, but kept consistent until there's real evidence either way."""
     for position in positions:
         try:
             ltp = fetch_ltp(client, "NFO", position.symbol)
@@ -58,9 +67,18 @@ async def _check_exits(db: AsyncSession, client: KiteClient, positions: list[Tra
             logger.warning("live_exit_quote_failed", symbol=position.symbol, error=str(exc))
             continue
 
+        entry_price = float(position.entry_price)
+        original_stop_loss = stop_loss_from_percentage(entry_price, STOP_LOSS_PCT)
+        current_stop_loss = float(position.stop_loss) if position.stop_loss is not None else original_stop_loss
+        trail_step = entry_price * TRAIL_STEP_PCT
+        new_stop_loss = trail_stop_loss(entry_price, ltp, current_stop_loss, trail_step)
+        if new_stop_loss != current_stop_loss:
+            position.stop_loss = new_stop_loss
+        trailing_engaged = new_stop_loss > original_stop_loss
+
         exit_reason = None
-        if position.stop_loss is not None and ltp <= float(position.stop_loss):
-            exit_reason = "STOP_LOSS"
+        if ltp <= new_stop_loss:
+            exit_reason = "TRAILING_STOP" if trailing_engaged else "STOP_LOSS"
         elif position.target is not None and ltp >= float(position.target):
             exit_reason = "TARGET"
 

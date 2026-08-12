@@ -7,7 +7,14 @@ import pytest
 
 from app.services.backtesting.engine import BacktestEngine
 from app.services.market_analysis.indicators import vwap
-from app.services.option_chain.analyzer import StrikeRow, max_pain, put_call_ratio, writing_activity
+from app.services.option_chain.analyzer import (
+    StrikeRow,
+    atm_oi_buildup_bias,
+    classify_oi_buildup,
+    max_pain,
+    put_call_ratio,
+    writing_activity,
+)
 from app.services.risk_management.manager import RiskLimits, RiskManager
 from app.services.signal_engine.exit_rules import compute_exit_levels, trail_stop_loss
 from app.services.signal_engine.scorer import SignalEngine
@@ -53,6 +60,35 @@ def test_writing_activity_detects_pe_writing(strike_rows):
     result = writing_activity(strike_rows, spot_price=48100)
     assert result["verdict"] == "PE_WRITING"
     assert result["pe_writing"] is True
+
+
+def test_classify_oi_buildup_four_states():
+    assert classify_oi_buildup(price_change=5, oi_change=100) == "LONG_BUILD_UP"
+    assert classify_oi_buildup(price_change=-5, oi_change=100) == "SHORT_BUILD_UP"
+    assert classify_oi_buildup(price_change=5, oi_change=-100) == "SHORT_COVERING"
+    assert classify_oi_buildup(price_change=-5, oi_change=-100) == "LONG_UNWINDING"
+    assert classify_oi_buildup(price_change=0, oi_change=0) == "NEUTRAL"
+
+
+def test_atm_oi_buildup_bias_no_previous_chain_is_neutral(strike_rows):
+    assert atm_oi_buildup_bias(strike_rows, None, spot_price=48000) == 0.0
+
+
+def test_atm_oi_buildup_bias_bullish_on_fresh_call_buying():
+    # ATM strike 48000: CE premium rose (250->260) with OI up -> LONG_BUILD_UP (bullish).
+    # PE premium fell (120->110) with OI down -> LONG_UNWINDING (mildly bullish for PE too).
+    previous = [StrikeRow(strike=48000, ce_oi=90000, ce_ltp=250, pe_oi=145000, pe_ltp=120)]
+    current = [StrikeRow(strike=48000, ce_oi=100000, ce_oi_change=10000, ce_ltp=260, pe_oi=140000, pe_oi_change=-5000, pe_ltp=110)]
+    bias = atm_oi_buildup_bias(current, previous, spot_price=48000)
+    assert bias > 0
+
+
+def test_atm_oi_buildup_bias_bearish_on_fresh_put_buying():
+    # PE premium rose with OI up -> LONG_BUILD_UP on puts (bearish).
+    previous = [StrikeRow(strike=48000, ce_oi=100000, ce_ltp=250, pe_oi=130000, pe_ltp=120)]
+    current = [StrikeRow(strike=48000, ce_oi=100000, ce_oi_change=0, ce_ltp=250, pe_oi=145000, pe_oi_change=15000, pe_ltp=140)]
+    bias = atm_oi_buildup_bias(current, previous, spot_price=48000)
+    assert bias < 0
 
 
 def test_vwap_handles_zero_volume_index_data():
@@ -110,6 +146,25 @@ def test_risk_manager_blocks_after_daily_loss_limit():
     rm = RiskManager(RiskLimits(max_daily_loss=1000, max_trade_loss=2000, max_open_positions=2, capital=100000))
     result = rm.can_open_new_trade(current_daily_pnl=-1000, open_positions=0)
     assert result.allowed is False
+
+
+def test_trailing_stop_locks_in_gains_but_target_still_caps():
+    # Target still caps the trade (see engine.py docstring for why - daily
+    # option-snapshot granularity makes an uncapped trailing exit unsafe).
+    open_trade = {"entry_price": 250.0, "stop_loss": 212.5, "original_stop_loss": 212.5, "target": 325.0}
+    trail_step = 250.0 * 0.05
+    open_trade["stop_loss"] = trail_stop_loss(250.0, 300.0, open_trade["stop_loss"], trail_step)
+    assert open_trade["stop_loss"] > open_trade["original_stop_loss"]
+
+    exit_price, exit_reason = BacktestEngine._check_exit(open_trade["target"], open_trade)
+    assert exit_price == open_trade["target"]
+    assert exit_reason == "TARGET"
+
+    # But a pullback to the trailed stop before reaching target exits early,
+    # locking in more than the original stop-loss would have.
+    exit_price, exit_reason = BacktestEngine._check_exit(open_trade["stop_loss"], open_trade)
+    assert exit_price == open_trade["stop_loss"]
+    assert exit_reason == "TRAILING_STOP"
 
 
 def test_backtest_engine_runs_and_produces_metrics(uptrend_df, strike_rows):

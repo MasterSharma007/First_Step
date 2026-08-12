@@ -43,7 +43,11 @@ class RuleBasedScorer:
         trend_points -= 1 if features.lower_high_lower_low else 0
         score += (trend_points / 4) * 25
 
-        # Options group (+/- 25): high PCR + PE writing => bullish
+        # Options group (+/- 25): high PCR + PE writing + bullish OI buildup => bullish.
+        # oi_buildup_bias is the most precise of the three (real premium-vs-OI
+        # classification on the actual ATM instrument, not an aggregate proxy)
+        # but weighted equally here rather than dominating, since it's 0.0
+        # (no opinion) whenever a previous chain isn't available yet.
         options_points = 0.0
         if features.pcr >= 1.2:
             options_points += 1
@@ -53,7 +57,8 @@ class RuleBasedScorer:
             options_points += 1
         elif features.ce_oi_change_near_atm > features.pe_oi_change_near_atm:
             options_points -= 1
-        score += (options_points / 2) * 25
+        options_points += features.oi_buildup_bias
+        score += (options_points / 3) * 25
 
         # Volume group (+/- 15): a spike amplifies whatever direction trend+options already lean
         if features.volume_spike:

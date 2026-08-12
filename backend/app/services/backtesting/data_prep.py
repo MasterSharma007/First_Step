@@ -15,6 +15,7 @@ import pandas as pd
 
 from app.models.india_vix import IndiaVix
 from app.models.option_ohlc import OptionOHLC
+from app.services.market_analysis.indicators import atr as _atr
 from app.services.option_chain.analyzer import StrikeRow
 
 
@@ -67,6 +68,49 @@ def build_option_chain_by_time(
         if snapshot_times[idx] <= ts:
             result[ts] = chains_by_snapshot[snapshot_times[idx]]
     return result
+
+
+def build_option_series(option_rows: list[OptionOHLC]) -> dict[tuple[float, str], list[OptionOHLC]]:
+    """Groups option candles by (strike, option_type), sorted by time, so
+    the engine can compute a real ATR from the specific instrument it's
+    actually about to trade - not an approximation off the spot index,
+    which is a different, much larger-scale series (see
+    `app/services/backtesting/engine.py` for why that distinction matters)."""
+    series: dict[tuple[float, str], list[OptionOHLC]] = {}
+    for r in option_rows:
+        series.setdefault((float(r.strike), r.option_type), []).append(r)
+    for rows in series.values():
+        rows.sort(key=lambda r: r.datetime_)
+    return series
+
+
+def option_atr_as_of(
+    series: dict[tuple[float, str], list[OptionOHLC]],
+    strike: float,
+    option_type: str,
+    as_of: pd.Timestamp,
+    period: int = 14,
+) -> float | None:
+    """Real ATR of the option's own premium, using candles up to `as_of`.
+    Returns None if there's not enough history yet for this instrument -
+    callers should fall back to a percentage-based stop in that case."""
+    rows = series.get((strike, option_type))
+    if not rows:
+        return None
+
+    candles = [r for r in rows if pd.Timestamp(r.datetime_) <= as_of]
+    if len(candles) < period + 1:
+        return None
+
+    candles = candles[-(period + 1) :]
+    df = pd.DataFrame(
+        {
+            "high": [float(c.high) for c in candles],
+            "low": [float(c.low) for c in candles],
+            "close": [float(c.close) for c in candles],
+        }
+    )
+    return float(_atr(df, period=period).iloc[-1])
 
 
 def build_vix_by_time(vix_rows: list[IndiaVix], spot_index: pd.DatetimeIndex) -> dict[pd.Timestamp, float]:

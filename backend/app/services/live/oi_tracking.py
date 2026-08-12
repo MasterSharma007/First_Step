@@ -33,8 +33,10 @@ async def _latest_snapshot_time(db: AsyncSession, underlying: str, expiry: date)
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
-async def _latest_prior_oi(db: AsyncSession, underlying: str, expiry: date) -> dict[tuple[float, str], int]:
-    """Latest stored OI per (strike, option_type)."""
+async def _latest_prior_chain(db: AsyncSession, underlying: str, expiry: date) -> list[StrikeRow]:
+    """Reconstructs a `StrikeRow` chain from the latest stored snapshot per
+    (strike, option_type) - both OI (for change) and LTP (for the OI
+    buildup classifier's price-change input, see `analyzer.atm_oi_buildup_bias`)."""
     stmt = (
         select(OptionChainSnapshot)
         .where(OptionChainSnapshot.underlying == underlying, OptionChainSnapshot.expiry == expiry)
@@ -42,21 +44,40 @@ async def _latest_prior_oi(db: AsyncSession, underlying: str, expiry: date) -> d
     )
     rows = list((await db.execute(stmt)).scalars().all())
 
-    latest: dict[tuple[float, str], int] = {}
+    latest: dict[tuple[float, str], OptionChainSnapshot] = {}
     for row in rows:
         key = (float(row.strike), row.option_type)
-        latest.setdefault(key, row.oi)  # newest-first, so first hit per key wins
-    return latest
+        latest.setdefault(key, row)  # newest-first, so first hit per key wins
+
+    by_strike: dict[float, dict[str, OptionChainSnapshot]] = {}
+    for (strike, option_type), row in latest.items():
+        by_strike.setdefault(strike, {})[option_type] = row
+
+    chain = []
+    for strike, sides in by_strike.items():
+        ce, pe = sides.get("CE"), sides.get("PE")
+        chain.append(
+            StrikeRow(
+                strike=strike,
+                ce_oi=ce.oi if ce else 0,
+                ce_ltp=float(ce.ltp) if ce else 0.0,
+                pe_oi=pe.oi if pe else 0,
+                pe_ltp=float(pe.ltp) if pe else 0.0,
+            )
+        )
+    return chain
 
 
 async def enrich_and_maybe_persist_oi_change(
     db: AsyncSession, underlying: str, expiry: date, as_of: datetime, chain: list[StrikeRow]
-) -> list[StrikeRow]:
-    """Mutates and returns `chain` with real ce_oi_change/pe_oi_change."""
+) -> tuple[list[StrikeRow], list[StrikeRow] | None]:
+    """Mutates and returns (`chain` with real ce_oi_change/pe_oi_change,
+    the previous chain it diffed against - or None on the very first poll)."""
     if not chain:
-        return chain
+        return chain, None
 
-    prior = await _latest_prior_oi(db, underlying, expiry)
+    previous_chain = await _latest_prior_chain(db, underlying, expiry)
+    prior = {(r.strike, "CE"): r.ce_oi for r in previous_chain} | {(r.strike, "PE"): r.pe_oi for r in previous_chain}
     for row in chain:
         prev_ce_oi = prior.get((row.strike, "CE"))
         prev_pe_oi = prior.get((row.strike, "PE"))
@@ -65,7 +86,7 @@ async def enrich_and_maybe_persist_oi_change(
 
     last_persisted = await _latest_snapshot_time(db, underlying, expiry)
     if last_persisted is not None and as_of - last_persisted < timedelta(seconds=MIN_PERSIST_INTERVAL_SECONDS):
-        return chain
+        return chain, (previous_chain or None)
 
     rows_to_insert = []
     for row in chain:
@@ -92,4 +113,4 @@ async def enrich_and_maybe_persist_oi_change(
     await db.execute(stmt)
     await db.commit()
 
-    return chain
+    return chain, (previous_chain or None)

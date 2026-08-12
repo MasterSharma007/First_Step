@@ -14,7 +14,12 @@ import pandas as pd
 from app.ml.features import SignalFeatures
 from app.ml.model import RuleBasedScorer, Scorer, verdict_for_score
 from app.services.market_analysis import indicators as ind
-from app.services.option_chain.analyzer import StrikeRow, put_call_ratio, writing_activity
+from app.services.option_chain.analyzer import (
+    StrikeRow,
+    atm_oi_buildup_bias,
+    put_call_ratio,
+    writing_activity,
+)
 
 
 @dataclass
@@ -42,6 +47,7 @@ class SignalEngine:
         option_chain_rows: list[StrikeRow],
         spot_price: float,
         india_vix: float,
+        previous_option_chain_rows: list[StrikeRow] | None = None,
     ) -> SignalFeatures:
         enriched = ind.with_indicators(spot_df)
         last = enriched.iloc[-1]
@@ -49,6 +55,7 @@ class SignalEngine:
 
         pcr = put_call_ratio(option_chain_rows)
         writing = writing_activity(option_chain_rows, spot_price=spot_price)
+        buildup_bias = atm_oi_buildup_bias(option_chain_rows, previous_option_chain_rows, spot_price)
 
         return SignalFeatures(
             price_above_vwap=bool(last["close"] > last["vwap"]),
@@ -59,6 +66,7 @@ class SignalEngine:
             pcr=pcr,
             ce_oi_change_near_atm=writing["ce_oi_change_near_atm"],
             pe_oi_change_near_atm=writing["pe_oi_change_near_atm"],
+            oi_buildup_bias=buildup_bias,
             volume_spike=ind.is_volume_spike(spot_df),
             relative_volume=float(spot_df["volume"].iloc[-1] / avg_volume),
             india_vix=india_vix,
@@ -71,8 +79,11 @@ class SignalEngine:
         option_chain_rows: list[StrikeRow],
         spot_price: float,
         india_vix: float,
+        previous_option_chain_rows: list[StrikeRow] | None = None,
     ) -> SignalDecision:
-        features = self.build_features(spot_df, option_chain_rows, spot_price, india_vix)
+        features = self.build_features(
+            spot_df, option_chain_rows, spot_price, india_vix, previous_option_chain_rows
+        )
         score = self.scorer.score(features)
         verdict = verdict_for_score(score, self.ce_threshold, self.pe_threshold)
 

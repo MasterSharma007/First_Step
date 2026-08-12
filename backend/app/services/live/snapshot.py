@@ -33,14 +33,17 @@ from app.services.option_chain.analyzer import (
     put_call_ratio,
     writing_activity,
 )
-from app.services.signal_engine.exit_rules import compute_exit_levels
+from app.services.signal_engine.exit_rules import compute_exit_levels, stop_loss_from_percentage
 from app.services.signal_engine.scorer import SignalDecision, SignalEngine
 
 logger = get_logger(__name__)
 
 MIN_SPOT_BARS = 50
 NEAR_ATM_STRIKES = 10  # each side, matches the backfill CLI default
-STOP_LOSS_POINTS = 20.0  # premium points - same convention as BacktestEngine's default
+STOP_LOSS_PCT = 0.15  # percentage of premium - matches BacktestEngine's default.
+# Not ATR-based here (unlike the backtest engine) because a real ATR needs
+# the option's own intrabar OHLC history, which live quote polling doesn't
+# have (only point-in-time LTP snapshots) - see app/services/backtesting/engine.py.
 
 
 @dataclass
@@ -122,12 +125,15 @@ async def compute_live_snapshot(
     expiry = expiries[0] if expiries else None
 
     chain: list[StrikeRow] = []
+    previous_chain: list[StrikeRow] | None = None
     if expiry is not None:
         option_instruments = resolver.options(settings.nfo_underlying, expiry)
         nearest = sorted(option_instruments, key=lambda i: abs(i.strike - spot_price))[: NEAR_ATM_STRIKES * 2]
         quotes = fetch_quotes(client, nearest)
         chain = option_chain_from_quotes(nearest, quotes)
-        chain = await enrich_and_maybe_persist_oi_change(db, settings.nfo_underlying, expiry, as_of, chain)
+        chain, previous_chain = await enrich_and_maybe_persist_oi_change(
+            db, settings.nfo_underlying, expiry, as_of, chain
+        )
 
     ce_writing = pe_writing = False
     pcr = max_pain_value = atm = oi_signal = None
@@ -146,7 +152,7 @@ async def compute_live_snapshot(
     suggested_strike = suggested_option_type = None
     entry_price = stop_loss = target = None
     if chain:
-        decision = signal_engine.evaluate(df, chain, spot_price, india_vix)
+        decision = signal_engine.evaluate(df, chain, spot_price, india_vix, previous_chain)
         atm_row = next((r for r in chain if r.strike == atm), None)
         if decision.signal_type == "CE_ENTRY" and atm_row and atm_row.ce_ltp > 0:
             suggested_strike, suggested_option_type, entry_price = atm, "CE", atm_row.ce_ltp
@@ -154,7 +160,8 @@ async def compute_live_snapshot(
             suggested_strike, suggested_option_type, entry_price = atm, "PE", atm_row.pe_ltp
 
         if entry_price is not None:
-            levels = compute_exit_levels(entry_price, STOP_LOSS_POINTS, settings.risk_reward_ratio)
+            sl_price = stop_loss_from_percentage(entry_price, STOP_LOSS_PCT)
+            levels = compute_exit_levels(entry_price, entry_price - sl_price, settings.risk_reward_ratio)
             stop_loss, target = levels.stop_loss, levels.target
 
     return LiveSnapshot(

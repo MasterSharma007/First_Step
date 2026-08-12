@@ -24,6 +24,7 @@ class SignalFeatures:
     pcr: float
     ce_oi_change_near_atm: int
     pe_oi_change_near_atm: int
+    oi_buildup_bias: float  # -1 (bearish) .. +1 (bullish), from classify_oi_buildup on the ATM strike
 
     # Volume features
     volume_spike: bool
@@ -43,6 +44,7 @@ class SignalFeatures:
             "pcr": self.pcr,
             "ce_oi_change_near_atm": self.ce_oi_change_near_atm,
             "pe_oi_change_near_atm": self.pe_oi_change_near_atm,
+            "oi_buildup_bias": self.oi_buildup_bias,
             "volume_spike": int(self.volume_spike),
             "relative_volume": self.relative_volume,
             "india_vix": self.india_vix,

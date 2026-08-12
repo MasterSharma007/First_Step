@@ -16,14 +16,14 @@ export default function LivePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-neutral-100">Live</h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <h1 className="text-xl font-semibold text-black">Live</h1>
+          <p className="mt-1 text-sm text-slate-600">
             Live price, signal, and paper P&amp;L - refreshes every {POLL_MS / 1000}s.
           </p>
         </div>
         {status && (
-          <div className="flex items-center gap-2 text-xs text-neutral-500">
-            <span className={`h-2 w-2 rounded-full ${loading ? "bg-amber-400" : "bg-emerald-400"} animate-pulse`} />
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span className={`h-2 w-2 rounded-full ${loading ? "bg-amber-500" : "bg-green-600"} animate-pulse`} />
             as of {new Date(status.as_of).toLocaleTimeString()}
           </div>
         )}
@@ -41,7 +41,7 @@ export default function LivePage() {
       {status && (
         <>
           {!status.live_loop_enabled && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-400">
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-800">
               Auto paper-trading loop is OFF (LIVE_LOOP_ENABLED=false) - signals are shown but positions won&apos;t
               open automatically.
             </div>
@@ -72,10 +72,10 @@ export default function LivePage() {
 
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-medium text-neutral-300">Open Paper Positions</h2>
-              <span className="text-xs text-neutral-500">
+              <h2 className="text-sm font-semibold text-black">Open Paper Positions</h2>
+              <span className="text-xs text-slate-500">
                 Today&apos;s realized P&amp;L:{" "}
-                <span className={status.today_realized_pnl >= 0 ? "text-emerald-400" : "text-red-400"}>
+                <span className={status.today_realized_pnl >= 0 ? "text-green-600" : "text-red-600"}>
                   {status.today_realized_pnl.toFixed(2)}
                 </span>
               </span>
@@ -87,9 +87,9 @@ export default function LivePage() {
                 hint="One will appear here automatically once the live loop opens a trade."
               />
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-neutral-800">
+              <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
                 <table className="w-full text-sm">
-                  <thead className="bg-neutral-800 text-left text-xs font-semibold uppercase text-neutral-300">
+                  <thead className="bg-slate-100 text-left text-xs font-semibold uppercase text-black">
                     <tr>
                       <th className="px-4 py-2 font-medium">Symbol</th>
                       <th className="px-4 py-2 font-medium">Qty</th>
@@ -100,24 +100,24 @@ export default function LivePage() {
                       <th className="px-4 py-2 font-medium">Unrealized P&amp;L</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-800">
+                  <tbody className="divide-y divide-slate-200">
                     {status.open_positions.map((p) => (
                       <tr key={p.order_id}>
-                        <td className="px-4 py-2 font-medium text-neutral-100">
-                          {p.symbol} <span className="text-neutral-500">{p.option_type}</span>
+                        <td className="px-4 py-2 font-semibold text-black">
+                          {p.symbol} <span className="font-normal text-slate-500">{p.option_type}</span>
                         </td>
-                        <td className="px-4 py-2">{p.quantity}</td>
-                        <td className="px-4 py-2">{p.entry_price.toFixed(2)}</td>
-                        <td className="px-4 py-2">{p.current_price?.toFixed(2) ?? "—"}</td>
-                        <td className="px-4 py-2 text-red-400">{p.stop_loss?.toFixed(2) ?? "—"}</td>
-                        <td className="px-4 py-2 text-emerald-400">{p.target?.toFixed(2) ?? "—"}</td>
+                        <td className="px-4 py-2 text-black">{p.quantity}</td>
+                        <td className="px-4 py-2 text-black">{p.entry_price.toFixed(2)}</td>
+                        <td className="px-4 py-2 text-black">{p.current_price?.toFixed(2) ?? "—"}</td>
+                        <td className="px-4 py-2 text-red-600">{p.stop_loss?.toFixed(2) ?? "—"}</td>
+                        <td className="px-4 py-2 text-green-600">{p.target?.toFixed(2) ?? "—"}</td>
                         <td
-                          className={`px-4 py-2 font-medium ${
+                          className={`px-4 py-2 font-semibold ${
                             (p.unrealized_pnl ?? 0) > 0
-                              ? "text-emerald-400"
+                              ? "text-green-600"
                               : (p.unrealized_pnl ?? 0) < 0
-                                ? "text-red-400"
-                                : ""
+                                ? "text-red-600"
+                                : "text-black"
                           }`}
                         >
                           {p.unrealized_pnl?.toFixed(2) ?? "—"}

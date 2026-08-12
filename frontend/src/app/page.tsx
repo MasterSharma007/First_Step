@@ -21,8 +21,8 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-semibold text-neutral-100">Bank Nifty Overview</h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <h1 className="text-xl font-semibold text-black">Bank Nifty Overview</h1>
+        <p className="mt-1 text-sm text-slate-600">
           Live spot price action and the latest signals from the Signal Generation Engine.
         </p>
       </div>
@@ -40,8 +40,8 @@ export default async function DashboardPage() {
 
       {trend && <TrendCard trend={trend} />}
 
-      <section className="rounded-lg border border-neutral-800 bg-neutral-900/30 p-4">
-        <h2 className="mb-4 text-sm font-medium text-neutral-300">Spot Price (5m)</h2>
+      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="mb-4 text-sm font-semibold text-black">Spot Price (5m)</h2>
         {candles.length > 0 ? (
           <SpotChart candles={candles} />
         ) : (
@@ -53,11 +53,11 @@ export default async function DashboardPage() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-sm font-medium text-neutral-300">Latest Signals</h2>
+        <h2 className="mb-4 text-sm font-semibold text-black">Latest Signals</h2>
         {signals.length > 0 ? (
-          <div className="overflow-hidden rounded-lg border border-neutral-800">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <table className="w-full text-sm">
-              <thead className="bg-neutral-800 text-left text-xs font-semibold uppercase text-neutral-300">
+              <thead className="bg-slate-100 text-left text-xs font-semibold uppercase text-black">
                 <tr>
                   <th className="px-4 py-2 font-medium">Time</th>
                   <th className="px-4 py-2 font-medium">Type</th>
@@ -66,20 +66,20 @@ export default async function DashboardPage() {
                   <th className="px-4 py-2 font-medium">Confidence</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-800">
+              <tbody className="divide-y divide-slate-200">
                 {signals.map((s) => (
                   <tr key={s.signal_id}>
-                    <td className="px-4 py-2 text-neutral-400">
+                    <td className="px-4 py-2 text-slate-600">
                       {new Date(s.entry_time).toLocaleString()}
                     </td>
                     <td className="px-4 py-2">
                       <SignalBadge type={s.signal_type} />
                     </td>
-                    <td className="px-4 py-2">{s.entry_price.toFixed(2)}</td>
-                    <td className="px-4 py-2 text-neutral-400">
+                    <td className="px-4 py-2 text-black">{s.entry_price.toFixed(2)}</td>
+                    <td className="px-4 py-2 text-slate-600">
                       {s.stop_loss?.toFixed(2) ?? "—"} / {s.target?.toFixed(2) ?? "—"}
                     </td>
-                    <td className="px-4 py-2 font-medium">{s.confidence_score.toFixed(1)}</td>
+                    <td className="px-4 py-2 font-semibold text-black">{s.confidence_score.toFixed(1)}</td>
                   </tr>
                 ))}
               </tbody>

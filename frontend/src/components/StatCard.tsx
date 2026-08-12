@@ -8,15 +8,11 @@ export default function StatCard({
   accent?: "neutral" | "positive" | "negative";
 }) {
   const accentClass =
-    accent === "positive"
-      ? "text-emerald-400"
-      : accent === "negative"
-        ? "text-red-400"
-        : "text-neutral-100";
+    accent === "positive" ? "text-green-600" : accent === "negative" ? "text-red-600" : "text-black";
 
   return (
-    <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-4">
-      <div className="text-xs uppercase tracking-wide text-neutral-500">{label}</div>
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
       <div className={`mt-1 text-2xl font-semibold ${accentClass}`}>{value}</div>
     </div>
   );

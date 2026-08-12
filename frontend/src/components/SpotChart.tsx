@@ -13,10 +13,10 @@ export default function SpotChart({ candles }: { candles: SpotOHLC[] }) {
     if (!containerRef.current) return;
 
     const chart = createChart(containerRef.current, {
-      layout: { background: { color: "transparent" }, textColor: "#a3a3a3" },
+      layout: { background: { color: "#ffffff" }, textColor: "#334155" },
       grid: {
-        vertLines: { color: "#262626" },
-        horzLines: { color: "#262626" },
+        vertLines: { color: "#e2e8f0" },
+        horzLines: { color: "#e2e8f0" },
       },
       width: containerRef.current.clientWidth,
       height: 360,
@@ -25,11 +25,11 @@ export default function SpotChart({ candles }: { candles: SpotOHLC[] }) {
     chartRef.current = chart;
 
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#34d399",
-      downColor: "#f87171",
+      upColor: "#16a34a",
+      downColor: "#dc2626",
       borderVisible: false,
-      wickUpColor: "#34d399",
-      wickDownColor: "#f87171",
+      wickUpColor: "#16a34a",
+      wickDownColor: "#dc2626",
     });
 
     series.setData(

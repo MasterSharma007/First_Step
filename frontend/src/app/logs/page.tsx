@@ -9,11 +9,11 @@ import { usePolling } from "@/lib/usePolling";
 const POLL_MS = 5000;
 
 const LEVEL_STYLE: Record<string, string> = {
-  debug: "text-neutral-500",
-  info: "text-sky-400",
-  warning: "text-amber-400",
-  error: "text-red-400",
-  critical: "text-red-400",
+  debug: "text-slate-500",
+  info: "text-blue-600",
+  warning: "text-amber-600",
+  error: "text-red-600",
+  critical: "text-red-600",
 };
 
 export default function LogsPage() {
@@ -24,13 +24,13 @@ export default function LogsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-neutral-100">Logs</h1>
-          <p className="mt-1 text-sm text-neutral-500">Backend log tail - refreshes every {POLL_MS / 1000}s.</p>
+          <h1 className="text-xl font-semibold text-black">Logs</h1>
+          <p className="mt-1 text-sm text-slate-600">Backend log tail - refreshes every {POLL_MS / 1000}s.</p>
         </div>
         <select
           value={level}
           onChange={(e) => setLevel(e.target.value)}
-          className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-sm text-neutral-200"
+          className="rounded border border-slate-300 bg-white px-2 py-1 text-sm text-black"
         >
           <option value="">All levels</option>
           <option value="error">Error</option>
@@ -47,16 +47,16 @@ export default function LogsPage() {
       )}
 
       {logs && logs.length > 0 && (
-        <div className="max-h-[70vh] overflow-y-auto rounded-lg border border-neutral-800 bg-neutral-950 font-mono text-xs">
+        <div className="max-h-[70vh] overflow-y-auto rounded-lg border border-slate-200 bg-white font-mono text-xs shadow-sm">
           {[...logs].reverse().map((entry, i) => (
-            <div key={i} className="flex gap-3 border-b border-neutral-900 px-3 py-1.5 hover:bg-neutral-900/50">
-              <span className="shrink-0 text-neutral-600">
+            <div key={i} className="flex gap-3 border-b border-slate-100 px-3 py-1.5 hover:bg-slate-50">
+              <span className="shrink-0 text-slate-400">
                 {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : "—"}
               </span>
-              <span className={`shrink-0 w-14 uppercase ${LEVEL_STYLE[entry.level] ?? "text-neutral-400"}`}>
+              <span className={`shrink-0 w-14 uppercase font-semibold ${LEVEL_STYLE[entry.level] ?? "text-slate-600"}`}>
                 {entry.level}
               </span>
-              <span className="break-all text-neutral-300">{entry.event}</span>
+              <span className="break-all text-black">{entry.event}</span>
             </div>
           ))}
         </div>

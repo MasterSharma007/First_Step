@@ -18,10 +18,10 @@ export default function Nav() {
   const pathname = usePathname();
 
   return (
-    <header className="border-b border-neutral-800 bg-neutral-950">
+    <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-4">
-        <span className="font-semibold tracking-tight text-neutral-100">
-          Bank Nifty <span className="text-emerald-400">AI</span>
+        <span className="font-semibold tracking-tight text-black">
+          Bank Nifty <span className="text-blue-600">AI</span>
         </span>
         <nav className="flex gap-1 text-sm">
           {LINKS.map((link) => {
@@ -30,10 +30,10 @@ export default function Nav() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-md px-3 py-1.5 transition-colors ${
+                className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
                   active
-                    ? "bg-neutral-800 text-neutral-100"
-                    : "text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200"
+                    ? "bg-blue-600 text-white"
+                    : "text-slate-700 hover:bg-sky-100 hover:text-black"
                 }`}
               >
                 {link.label}

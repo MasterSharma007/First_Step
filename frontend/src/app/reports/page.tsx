@@ -8,8 +8,8 @@ export default async function ReportsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-neutral-100">Daily Report</h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <h1 className="text-xl font-semibold text-black">Daily Report</h1>
+        <p className="mt-1 text-sm text-slate-600">
           {report ? report.report_date : "Today"} · Trades, win rate, net profit, and drawdown.
         </p>
       </div>

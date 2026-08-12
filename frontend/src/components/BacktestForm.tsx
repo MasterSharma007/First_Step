@@ -33,33 +33,33 @@ export default function BacktestForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-4 rounded-lg border border-neutral-800 bg-neutral-900/30 p-4">
-      <label className="flex flex-col gap-1 text-xs text-neutral-500">
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <label className="flex flex-col gap-1 text-xs text-slate-500">
         Start date
         <input
           type="date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
-          className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-sm text-neutral-200"
+          className="rounded border border-slate-300 bg-white px-2 py-1 text-sm text-black"
         />
       </label>
-      <label className="flex flex-col gap-1 text-xs text-neutral-500">
+      <label className="flex flex-col gap-1 text-xs text-slate-500">
         End date
         <input
           type="date"
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
-          className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-sm text-neutral-200"
+          className="rounded border border-slate-300 bg-white px-2 py-1 text-sm text-black"
         />
       </label>
       <button
         type="submit"
         disabled={submitting}
-        className="rounded bg-emerald-500 px-4 py-1.5 text-sm font-medium text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
+        className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
       >
         {submitting ? "Running…" : "Run Backtest"}
       </button>
-      {error && <span className="text-sm text-red-400">{error}</span>}
+      {error && <span className="text-sm text-red-600">{error}</span>}
     </form>
   );
 }

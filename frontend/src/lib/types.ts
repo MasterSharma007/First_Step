@@ -160,6 +160,7 @@ export interface LiveStatus {
   today_realized_pnl: number;
   today_trade_count: number;
   live_loop_enabled: boolean;
+  trading_mode: "PAPER" | "LIVE";
 }
 
 export interface TimeframeReading {

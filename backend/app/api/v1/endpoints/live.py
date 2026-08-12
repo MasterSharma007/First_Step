@@ -1,8 +1,9 @@
 """Live cockpit read (SRD §2): current price, trend, support/resistance,
-what the Signal Engine says right now, and any open paper positions with
-live unrealized P&L. Read-only - the actual position management happens
-in the background loop (`app/workers/live_loop.py`), not here, so calling
-this endpoint never itself opens/closes a trade."""
+what the Signal Engine says right now, and any open positions (paper or
+real, per `settings.paper_trading`) with live unrealized P&L. Read-only -
+the actual position management happens in the background loop
+(`app/workers/live_loop.py`), not here, so calling this endpoint never
+itself opens/closes a trade."""
 
 from __future__ import annotations
 
@@ -48,9 +49,9 @@ async def get_live_status(db: AsyncSession = Depends(get_db)) -> LiveStatusOut:
             detail="Not enough spot_ohlc history yet - run `uv run backfill spot` first.",
         )
 
-    open_stmt = select(TradeExecution).where(
-        TradeExecution.mode == TradeMode.PAPER, TradeExecution.status == TradeStatus.OPEN
-    )
+    mode = TradeMode.PAPER if settings.paper_trading else TradeMode.LIVE
+
+    open_stmt = select(TradeExecution).where(TradeExecution.mode == mode, TradeExecution.status == TradeStatus.OPEN)
     open_rows = list((await db.execute(open_stmt)).scalars().all())
 
     open_positions: list[OpenPositionOut] = []
@@ -79,7 +80,7 @@ async def get_live_status(db: AsyncSession = Depends(get_db)) -> LiveStatusOut:
 
     today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     closed_today_stmt = select(TradeExecution).where(
-        TradeExecution.mode == TradeMode.PAPER,
+        TradeExecution.mode == mode,
         TradeExecution.status == TradeStatus.CLOSED,
         TradeExecution.exit_time >= today_start,
     )
@@ -117,4 +118,5 @@ async def get_live_status(db: AsyncSession = Depends(get_db)) -> LiveStatusOut:
         today_realized_pnl=today_realized_pnl,
         today_trade_count=len(closed_today) + len(open_positions),
         live_loop_enabled=settings.live_loop_enabled,
+        trading_mode=mode.value,
     )

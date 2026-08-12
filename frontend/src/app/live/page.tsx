@@ -21,15 +21,26 @@ export default function LivePage() {
         <div>
           <h1 className="text-xl font-semibold text-black">Live</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Live price, signal, and paper P&amp;L - refreshes every {POLL_MS / 1000}s.
+            Live price, signal, and P&amp;L - refreshes every {POLL_MS / 1000}s.
           </p>
         </div>
-        {status && (
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span className={`h-2 w-2 rounded-full ${loading ? "bg-amber-500" : "bg-green-600"} animate-pulse`} />
-            as of {new Date(status.as_of).toLocaleTimeString()}
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {status && (
+            <span
+              className={`rounded px-2.5 py-1 text-xs font-bold tracking-wide ${
+                status.trading_mode === "LIVE" ? "bg-red-600 text-white" : "bg-slate-700 text-white"
+              }`}
+            >
+              {status.trading_mode === "LIVE" ? "🔴 LIVE - REAL MONEY" : "PAPER"}
+            </span>
+          )}
+          {status && (
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span className={`h-2 w-2 rounded-full ${loading ? "bg-amber-500" : "bg-green-600"} animate-pulse`} />
+              as of {new Date(status.as_of).toLocaleTimeString()}
+            </div>
+          )}
+        </div>
       </div>
 
       {error && !status && (
@@ -45,8 +56,14 @@ export default function LivePage() {
         <>
           {!status.live_loop_enabled && (
             <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-              Auto paper-trading loop is OFF (LIVE_LOOP_ENABLED=false) - signals are shown but positions won&apos;t
-              open automatically.
+              Auto trading loop is OFF (LIVE_LOOP_ENABLED=false) - signals are shown but positions won&apos;t open
+              automatically.
+            </div>
+          )}
+          {status.trading_mode === "LIVE" && (
+            <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-xs font-medium text-red-800">
+              Trading mode is LIVE - entries/exits below place real orders through Kite, not simulated ones. Switch
+              back via PAPER_TRADING=true in backend/.env (restart required).
             </div>
           )}
 
@@ -77,7 +94,9 @@ export default function LivePage() {
 
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-black">Open Paper Positions</h2>
+              <h2 className="text-sm font-semibold text-black">
+                Open {status.trading_mode === "LIVE" ? "Live" : "Paper"} Positions
+              </h2>
               <span className="text-xs text-slate-500">
                 Today&apos;s realized P&amp;L:{" "}
                 <span className={status.today_realized_pnl >= 0 ? "text-green-600" : "text-red-600"}>
@@ -88,7 +107,7 @@ export default function LivePage() {
 
             {status.open_positions.length === 0 ? (
               <EmptyState
-                title="No open paper positions"
+                title={`No open ${status.trading_mode === "LIVE" ? "live" : "paper"} positions`}
                 hint="One will appear here automatically once the live loop opens a trade."
               />
             ) : (

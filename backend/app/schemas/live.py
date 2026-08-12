@@ -46,3 +46,4 @@ class LiveStatusOut(BaseModel):
     today_realized_pnl: float
     today_trade_count: int
     live_loop_enabled: bool
+    trading_mode: str  # "PAPER" or "LIVE" - settings.paper_trading

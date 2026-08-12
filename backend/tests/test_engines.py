@@ -114,8 +114,18 @@ def test_risk_manager_blocks_after_daily_loss_limit():
 
 def test_backtest_engine_runs_and_produces_metrics(uptrend_df, strike_rows):
     engine = BacktestEngine()
-    option_chain_by_time = {ts: strike_rows for ts in uptrend_df.index}
+    base_close = uptrend_df["close"].iloc[0]
+    # A static chain never moves the option premium, so nothing would ever
+    # hit stop/target - track the 48000 CE premium against the underlying's
+    # move (a rough stand-in for delta) so the trade can actually resolve.
+    option_chain_by_time = {}
+    for ts, close in uptrend_df["close"].items():
+        moved = [StrikeRow(**r.__dict__) for r in strike_rows]
+        for row, original in zip(moved, strike_rows, strict=True):
+            row.ce_ltp = original.ce_ltp + (close - base_close) * 0.5
+        option_chain_by_time[ts] = moved
     vix_by_time = {ts: 13.5 for ts in uptrend_df.index}
+
     run = engine.run(uptrend_df, option_chain_by_time, vix_by_time)
     assert run.metrics.total_trades == len(run.trades)
     assert run.metrics.total_trades > 0

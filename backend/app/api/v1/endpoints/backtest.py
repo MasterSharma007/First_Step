@@ -2,7 +2,7 @@ from datetime import timedelta
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -43,13 +43,22 @@ async def run_backtest(request: BacktestRequest, db: AsyncSession = Depends(get_
     # option_ohlc/futures are stored under the NFO underlying name (e.g.
     # "BANKNIFTY"), which differs from the spot symbol in `request.underlying`
     # (e.g. "NIFTY BANK") - see app/core/config.py:nfo_underlying.
-    option_stmt = select(OptionOHLC).where(
+    #
+    # Multiple expiries' contracts share the same strike/type/date once more
+    # than one is listed (e.g. Aug and Sep). Grouping option rows without
+    # pinning to one expiry silently mixes them - a thin, barely-traded far
+    # expiry's stale flat last-price can overwrite the real near-expiry
+    # premium on some dates and not others, corrupting entry/exit prices.
+    # So: pick the nearest expiry with any data in range and trade only that
+    # one throughout - the same "nearest expiry" contract the live signal
+    # engine and Trend endpoint already use.
+    expiry_stmt = select(func.min(OptionOHLC.expiry)).where(
         OptionOHLC.underlying == settings.nfo_underlying,
         OptionOHLC.datetime_ >= request.start_date,
         OptionOHLC.datetime_ <= range_end,
     )
-    option_rows = list((await db.execute(option_stmt)).scalars().all())
-    if not option_rows:
+    chosen_expiry = (await db.execute(expiry_stmt)).scalar_one_or_none()
+    if chosen_expiry is None:
         raise HTTPException(
             status_code=422,
             detail=(
@@ -59,6 +68,14 @@ async def run_backtest(request: BacktestRequest, db: AsyncSession = Depends(get_
                 "why historical options are limited to currently-listed contracts)."
             ),
         )
+
+    option_stmt = select(OptionOHLC).where(
+        OptionOHLC.underlying == settings.nfo_underlying,
+        OptionOHLC.expiry == chosen_expiry,
+        OptionOHLC.datetime_ >= request.start_date,
+        OptionOHLC.datetime_ <= range_end,
+    )
+    option_rows = list((await db.execute(option_stmt)).scalars().all())
 
     vix_stmt = select(IndiaVix).where(IndiaVix.datetime_ >= request.start_date, IndiaVix.datetime_ <= range_end)
     vix_rows = list((await db.execute(vix_stmt)).scalars().all())
@@ -95,6 +112,7 @@ async def run_backtest(request: BacktestRequest, db: AsyncSession = Depends(get_
         net_pnl=run.metrics.net_pnl,
         params={
             **request.params,
+            "expiry_traded": chosen_expiry.isoformat(),
             "option_chain_coverage_bars": len(option_chain_by_time),
             "spot_bars": len(df),
         },

@@ -29,7 +29,7 @@ infra/postgres/data/
 
 # Logs
 *.log
-logs/
+backend/logs/
 
 # OS / editor
 .DS_Store

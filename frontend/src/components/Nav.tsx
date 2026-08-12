@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 
 const LINKS = [
   { href: "/", label: "Dashboard" },
+  { href: "/live", label: "Live" },
   { href: "/option-chain", label: "Option Chain" },
   { href: "/signals", label: "Signals" },
   { href: "/trades", label: "Trades" },
   { href: "/backtest", label: "Backtest" },
   { href: "/reports", label: "Reports" },
+  { href: "/logs", label: "Logs" },
 ];
 
 export default function Nav() {

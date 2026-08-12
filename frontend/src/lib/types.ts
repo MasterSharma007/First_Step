@@ -116,3 +116,56 @@ export interface DailyReport {
   charges: number;
   max_drawdown: number;
 }
+
+export interface SignalSuggestion {
+  signal_type: "CE_ENTRY" | "PE_ENTRY" | "NO_TRADE";
+  verdict: string;
+  confidence_score: number;
+  strike: number | null;
+  option_type: string | null;
+  entry_price: number | null;
+  stop_loss: number | null;
+  target: number | null;
+  reasons: Record<string, number | string>;
+}
+
+export interface LiveOpenPosition {
+  order_id: string;
+  symbol: string;
+  option_type: string;
+  quantity: number;
+  entry_price: number;
+  current_price: number | null;
+  stop_loss: number | null;
+  target: number | null;
+  unrealized_pnl: number | null;
+  entry_time: string;
+}
+
+export interface LiveStatus {
+  as_of: string;
+  spot_price: number;
+  trend_direction: TrendDirection;
+  trend_reasons: string[];
+  support: number;
+  resistance: number;
+  expiry: string | null;
+  atm_strike: number | null;
+  pcr: number | null;
+  max_pain: number | null;
+  oi_signal: string | null;
+  india_vix: number;
+  signal: SignalSuggestion;
+  open_positions: LiveOpenPosition[];
+  today_realized_pnl: number;
+  today_trade_count: number;
+  live_loop_enabled: boolean;
+}
+
+export interface LogEntry {
+  timestamp: string | null;
+  level: string;
+  event: string;
+  logger?: string;
+  [key: string]: unknown;
+}

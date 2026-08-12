@@ -2,6 +2,8 @@ import type {
   BacktestRequest,
   BacktestResultOut,
   DailyReport,
+  LiveStatus,
+  LogEntry,
   OptionChainAnalysis,
   SpotOHLC,
   TradeExecution,
@@ -76,4 +78,13 @@ export const api = {
 
   dailyReport: (reportDate?: string) =>
     request<DailyReport>(`/reports/daily${reportDate ? `?report_date=${reportDate}` : ""}`),
+
+  liveStatus: () => request<LiveStatus>("/live/status"),
+
+  logsTail: (params: { lines?: number; level?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.lines) query.set("lines", String(params.lines));
+    if (params.level) query.set("level", params.level);
+    return request<LogEntry[]>(`/logs/tail?${query.toString()}`);
+  },
 };

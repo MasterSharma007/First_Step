@@ -4,7 +4,9 @@ Automated platform that analyzes Bank Nifty spot and options data in
 real-time, identifies high-probability CE/PE opportunities, backtests
 strategies, paper-trades, and executes live trades via Kite Connect.
 
-Full requirements: [`docs/SRD.md`](docs/SRD.md).
+- Full requirements: [`docs/SRD.md`](docs/SRD.md)
+- Setup guide: [`docs/SETUP.md`](docs/SETUP.md)
+- User manual (what each page shows): [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md)
 
 ## Structure
 
@@ -14,7 +16,8 @@ Full requirements: [`docs/SRD.md`](docs/SRD.md).
 │                signal generation, risk management, backtesting, trading
 ├── frontend/    Next.js dashboard: market view, option chain, signals,
 │                backtest results, reports
-├── docs/        SRD and supporting docs
+├── docs/        SRD, setup guide, user manual
+├── scripts/     setup.sh - one-shot dev environment setup
 └── docker-compose.yml   Postgres, Redis, RabbitMQ, backend, frontend
 ```
 
@@ -41,61 +44,20 @@ app/
 
 ## Getting started
 
-### 1. Infra
-
 ```bash
-cp backend/.env.example backend/.env   # fill in Kite + DB credentials
-docker compose up -d postgres redis rabbitmq
+./scripts/setup.sh
 ```
 
-### 2. Backend
+Checks prerequisites, installs backend/frontend deps, starts Postgres/Redis/RabbitMQ, and runs migrations. Then follow the printed next steps (Kite credentials, historical backfill, starting the dev servers). Full walkthrough: [`docs/SETUP.md`](docs/SETUP.md).
 
-```bash
-cd backend
-uv sync
-uv run alembic upgrade head
-uv run uvicorn app.main:app --reload
-```
-
-API docs at `http://localhost:8000/docs`.
-
-### 3. Backfill historical data
-
-Requires `KITE_ACCESS_TOKEN` to be set (regenerated daily via the login
-flow at `GET /api/v1/kite/login-url` → `/api/v1/kite/callback`, see
-`app/services/kite/client.py`).
-
-```bash
-cd backend
-uv run backfill spot --years 2        # NIFTY BANK spot, 1d/15m/5m/1m
-uv run backfill vix --years 2         # India VIX
-uv run backfill futures --years 1     # currently-listed BANKNIFTY futures
-uv run backfill options --expiries 2 --strikes-around-atm 10
-uv run backfill all --years 2         # everything above
-```
-
-`futures`/`options` can only backfill contracts Kite currently lists (their
-`/instruments` endpoint doesn't expose expired contracts) - history for
-those accumulates going forward via the live feed instead. `spot`/`vix`
-have no such limit. See `app/cli/backfill.py` for all flags (`--from`,
-`--to`, `--interval`, `--delay` for rate limiting, etc).
-
-### 4. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Dashboard at `http://localhost:3000`.
+Once running: dashboard at `http://localhost:3001`, API docs at `http://localhost:8001/docs`. See [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md) for what each page shows - support/resistance, live signals, trades, logs, etc.
 
 ## Status
 
-Initial scaffold: database schema + migrations, FastAPI service structure,
-Kite integration interfaces, option chain / market analysis / signal /
-backtesting engines with working logic against historical data, and a
-Next.js dashboard shell. Live order execution and the ML scoring model are
-wired to real interfaces but require your Kite credentials and trained
-model artifacts respectively before going live — see `docs/SRD.md` §11 for
-the phased roadmap.
+Working end-to-end against real Kite data: database schema + migrations,
+historical backfill, live price/signal/trend/support-resistance, a
+DB-backed live paper trading loop, backtesting, and a Next.js dashboard
+(Dashboard, Live, Option Chain, Signals, Trades, Backtest, Reports, Logs).
+The rule-based Signal Engine is functional but untuned - see `docs/SRD.md`
+§11 for the ML scoring model and other phased roadmap items, and
+`docs/USER_MANUAL.md` for a walkthrough of what's live today.

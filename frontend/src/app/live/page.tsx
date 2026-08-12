@@ -7,7 +7,7 @@ import TrendCard from "@/components/TrendCard";
 import { ApiError, api } from "@/lib/api";
 import { usePolling } from "@/lib/usePolling";
 
-const POLL_MS = 8000;
+const POLL_MS = 5000; // matches the backend's live tick-aggregation cadence
 
 export default function LivePage() {
   const { data: status, error, loading } = usePolling(() => api.liveStatus(), POLL_MS);

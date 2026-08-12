@@ -18,14 +18,23 @@ logger = get_logger(__name__)
 TICK_CHANNEL = "market:ticks"
 
 
-async def handle_ticks(ticks: list[dict], db: AsyncSession) -> None:
+async def handle_ticks(ticks: list[dict], db: AsyncSession, token_to_symbol: dict[int, str]) -> None:
+    """`token_to_symbol` maps subscribed instrument tokens to the
+    human-readable symbol names used everywhere else (`"NIFTY BANK"`,
+    `"INDIA VIX"`) - `market_ticks`/`spot_ohlc` are keyed by that name, not
+    Kite's numeric token, so ticks for unmapped tokens are dropped."""
     redis = get_redis()
+    persisted = 0
 
     for tick in ticks:
+        symbol = token_to_symbol.get(tick["instrument_token"])
+        if symbol is None:
+            continue
+
         db.add(
             MarketTick(
                 timestamp=tick.get("exchange_timestamp") or datetime.now(UTC),
-                symbol=str(tick["instrument_token"]),
+                symbol=symbol,
                 price=tick.get("last_price", 0),
                 volume=tick.get("volume_traded", 0),
                 bid=(tick.get("depth", {}).get("buy") or [{}])[0].get("price"),
@@ -33,7 +42,12 @@ async def handle_ticks(ticks: list[dict], db: AsyncSession) -> None:
                 oi=tick.get("oi"),
             )
         )
-        await redis.publish(TICK_CHANNEL, orjson.dumps(tick).decode())
+        persisted += 1
+        try:
+            await redis.publish(TICK_CHANNEL, orjson.dumps(tick).decode())
+        except Exception as exc:  # noqa: BLE001 - Redis being unavailable shouldn't drop the tick itself
+            logger.warning("tick_redis_publish_failed", error=str(exc))
 
-    await db.commit()
-    logger.debug("ticks_persisted", count=len(ticks))
+    if persisted:
+        await db.commit()
+    logger.debug("ticks_persisted", count=persisted, received=len(ticks))

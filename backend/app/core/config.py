@@ -43,7 +43,7 @@ class Settings(BaseSettings):
 
     # Live loop
     live_loop_enabled: bool = False
-    live_loop_interval_seconds: int = 30
+    live_loop_interval_seconds: int = 10
 
     # Signal thresholds (see SRD §6, §8)
     ce_signal_score_threshold: float = 70.0

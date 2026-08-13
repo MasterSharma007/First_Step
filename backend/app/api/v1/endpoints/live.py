@@ -19,7 +19,7 @@ from app.core.logging import get_logger
 from app.models.trade_execution import TradeExecution, TradeMode, TradeStatus
 from app.schemas.live import LiveStatusOut, OpenPositionOut, SignalSuggestion
 from app.services.kite.client import KiteClientError, get_kite_client
-from app.services.kite.instruments import InstrumentResolver
+from app.services.kite.instruments import get_instrument_resolver
 from app.services.kite.live_quote import fetch_ltp
 from app.services.live.snapshot import compute_live_snapshot
 from app.services.signal_engine.scorer import SignalEngine
@@ -37,7 +37,7 @@ async def get_live_status(db: AsyncSession = Depends(get_db)) -> LiveStatusOut:
     except KiteClientError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    resolver = InstrumentResolver(client)
+    resolver = get_instrument_resolver(client)
     signal_engine = SignalEngine(
         ce_threshold=settings.ce_signal_score_threshold, pe_threshold=settings.pe_signal_score_threshold
     )

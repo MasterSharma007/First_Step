@@ -19,7 +19,7 @@ from app.core.config import get_settings
 from app.core.database import async_session_factory
 from app.core.logging import get_logger
 from app.services.kite.client import KiteClientError, get_kite_client
-from app.services.kite.instruments import InstrumentResolver
+from app.services.kite.instruments import get_instrument_resolver
 from app.services.kite.live_feed import LiveFeedService
 from app.workers.tick_ingestion import handle_ticks
 
@@ -48,7 +48,7 @@ def start_tick_stream() -> None:
         logger.warning("tick_stream_not_started_no_kite_client", error=str(exc))
         return
 
-    resolver = InstrumentResolver(client)
+    resolver = get_instrument_resolver(client)
     try:
         spot = resolver.spot_index(settings.trading_symbol)
         vix = resolver.india_vix()

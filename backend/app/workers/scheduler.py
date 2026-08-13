@@ -14,7 +14,7 @@ from app.core.config import get_settings
 from app.core.database import async_session_factory
 from app.core.logging import get_logger
 from app.services.kite.client import get_kite_client
-from app.services.kite.instruments import InstrumentResolver
+from app.services.kite.instruments import get_instrument_resolver
 from app.services.signal_engine.scorer import SignalEngine
 from app.workers.live_aggregation import (
     aggregate_current_spot_bar,
@@ -59,7 +59,7 @@ async def _tick() -> None:
         logger.error("live_loop_tick_failed_no_kite_client", error=str(exc))
         return
 
-    resolver = InstrumentResolver(client)
+    resolver = get_instrument_resolver(client)
     signal_engine = SignalEngine(
         ce_threshold=settings.ce_signal_score_threshold, pe_threshold=settings.pe_signal_score_threshold
     )

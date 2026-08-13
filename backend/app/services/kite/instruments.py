@@ -95,3 +95,20 @@ class InstrumentResolver:
             if r.get("name") == underlying and r.get("instrument_type") in ("FUT", "CE", "PE") and r.get("expiry")
         }
         return sorted(found)
+
+
+_shared_resolver: InstrumentResolver | None = None
+
+
+def get_instrument_resolver(client: KiteClient) -> InstrumentResolver:
+    """Process-wide singleton so the live loop's 10s tick and the /live/status
+    endpoint's 5s poll share one cached instrument dump instead of each
+    re-fetching Kite's ~450KB /instruments/NFO response on every call - the
+    combined request rate from two independent uncached resolvers was
+    tripping Kite's rate limit (429 Too many requests). Instrument dumps
+    don't change intraday, and the daily access-token restart naturally
+    resets this cache along with everything else."""
+    global _shared_resolver
+    if _shared_resolver is None:
+        _shared_resolver = InstrumentResolver(client)
+    return _shared_resolver

@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     live_loop_enabled: bool = False
     live_loop_interval_seconds: int = 10
     eod_square_off_time: str = "15:38"  # HH:MM, IST - force-close every open paper position at/after this time
+    # Blocks re-entering the same strike/side for this long after it last
+    # exited (any reason) - a choppy spot near a support/resistance level
+    # can re-trigger the same signal seconds after a stop-out, re-entering
+    # into the same whipsaw repeatedly (49 trades / 10% win rate on one
+    # session - see live trading notes 2026-08-13).
+    reentry_cooldown_seconds: int = 300
 
     # Signal thresholds (see SRD §6, §8)
     ce_signal_score_threshold: float = 70.0

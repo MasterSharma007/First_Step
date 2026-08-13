@@ -21,7 +21,7 @@ untouched (not silently exited) until you switch back to it."""
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -72,6 +72,15 @@ def _fetch_fill_price(client: KiteClient, broker_order_id: str, fallback: float)
 async def _open_positions(db: AsyncSession, mode: TradeMode) -> list[TradeExecution]:
     stmt = select(TradeExecution).where(TradeExecution.mode == mode, TradeExecution.status == TradeStatus.OPEN)
     return list((await db.execute(stmt)).scalars().all())
+
+
+async def _recently_exited_symbols(db: AsyncSession, mode: TradeMode, since: datetime) -> set[str]:
+    stmt = select(TradeExecution.symbol).where(
+        TradeExecution.mode == mode,
+        TradeExecution.status == TradeStatus.CLOSED,
+        TradeExecution.exit_time >= since,
+    )
+    return {row[0] for row in (await db.execute(stmt)).all()}
 
 
 async def _daily_realized_pnl(db: AsyncSession, mode: TradeMode) -> float:
@@ -184,6 +193,17 @@ async def _maybe_open_position(
         # changed since we opened it, so re-entering every cycle would
         # just stack duplicate positions on the same instrument.
         return
+
+    if settings.reentry_cooldown_seconds > 0:
+        cooldown_start = snapshot.as_of - timedelta(seconds=settings.reentry_cooldown_seconds)
+        recently_exited = await _recently_exited_symbols(db, mode, cooldown_start)
+        if any(suggested_symbol_hint in s for s in recently_exited):
+            # This strike/side just exited (stop, target, or otherwise) -
+            # a choppy spot near a support/resistance level can flip the
+            # same signal back on seconds later, re-entering into the same
+            # whipsaw repeatedly instead of waiting for it to resolve.
+            logger.info("live_entry_cooldown_blocked", symbol_hint=suggested_symbol_hint)
+            return
 
     daily_pnl = await _daily_realized_pnl(db, mode)
     can_open = risk_manager.can_open_new_trade(daily_pnl, len(open_positions))

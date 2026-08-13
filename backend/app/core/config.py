@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     max_trade_loss: float = 4000.0
     max_open_positions: int = 2
     risk_reward_ratio: float = 2.0
+    # Floor on (target - entry) / (entry - stop_loss). The S/R cap in
+    # sr_capped_target() can crush the target down to almost nothing when
+    # spot is already sitting at the level - this rejects those trades
+    # instead of opening a full-risk, near-zero-reward position.
+    min_reward_risk_ratio: float = 0.5
 
     # Live loop
     live_loop_enabled: bool = False

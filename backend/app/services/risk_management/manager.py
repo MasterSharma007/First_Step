@@ -17,6 +17,7 @@ class RiskLimits:
     max_open_positions: int
     capital: float
     risk_per_trade_pct: float = 1.0  # % of capital risked per trade
+    min_reward_risk_ratio: float = 0.5  # reject trades offering less reward than this multiple of their risk
 
 
 @dataclass
@@ -36,13 +37,26 @@ class RiskManager:
             return RiskCheckResult(False, "Maximum open positions reached")
         return RiskCheckResult(True)
 
-    def validate_trade_risk(self, entry_price: float, stop_loss: float, lot_size: int) -> RiskCheckResult:
+    def validate_trade_risk(
+        self, entry_price: float, stop_loss: float, lot_size: int, target: float | None = None
+    ) -> RiskCheckResult:
         risk_per_lot = abs(entry_price - stop_loss) * lot_size
         if risk_per_lot > self.limits.max_trade_loss:
             return RiskCheckResult(
                 False,
                 f"Trade risk {risk_per_lot:.2f} exceeds max trade loss {self.limits.max_trade_loss:.2f}",
             )
+
+        if target is not None:
+            risk_points = abs(entry_price - stop_loss)
+            reward_points = abs(target - entry_price)
+            if risk_points > 0 and reward_points / risk_points < self.limits.min_reward_risk_ratio:
+                return RiskCheckResult(
+                    False,
+                    f"Reward:risk {reward_points / risk_points:.2f} below minimum "
+                    f"{self.limits.min_reward_risk_ratio:.2f} (risk {risk_points:.2f}, reward {reward_points:.2f})",
+                )
+
         return RiskCheckResult(True)
 
     def position_size(self, entry_price: float, stop_loss: float, lot_size: int) -> int:

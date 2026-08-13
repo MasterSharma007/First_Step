@@ -203,7 +203,9 @@ async def _maybe_open_position(
         logger.warning("live_entry_instrument_not_found", strike=snapshot.suggested_strike, expiry=str(snapshot.expiry))
         return
 
-    risk_check = risk_manager.validate_trade_risk(snapshot.entry_price, snapshot.stop_loss, instrument.lot_size)
+    risk_check = risk_manager.validate_trade_risk(
+        snapshot.entry_price, snapshot.stop_loss, instrument.lot_size, target=snapshot.target
+    )
     if not risk_check.allowed:
         logger.info("live_entry_risk_rejected", reason=risk_check.reason)
         return
@@ -304,6 +306,7 @@ async def run_live_cycle(
             max_open_positions=settings.max_open_positions,
             capital=settings.paper_trading_capital,
             risk_per_trade_pct=settings.risk_per_trade_pct,
+            min_reward_risk_ratio=settings.min_reward_risk_ratio,
         )
     )
     await _maybe_open_position(db, client, settings, resolver, snapshot, risk_manager, remaining_open, mode)

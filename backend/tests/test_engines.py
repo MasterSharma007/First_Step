@@ -177,6 +177,38 @@ def test_risk_manager_blocks_after_daily_loss_limit():
     assert result.allowed is False
 
 
+def test_risk_manager_rejects_target_below_min_reward_risk_ratio():
+    # An S/R-capped target that leaves almost no reward relative to the
+    # stop-loss risk (see live_loop._maybe_open_position) should be
+    # rejected rather than opened at full risk for near-zero reward.
+    rm = RiskManager(
+        RiskLimits(
+            max_daily_loss=10000,
+            max_trade_loss=4000,
+            max_open_positions=2,
+            capital=100000,
+            min_reward_risk_ratio=0.5,
+        )
+    )
+    result = rm.validate_trade_risk(entry_price=452.8, stop_loss=384.88, lot_size=30, target=456.0)
+    assert result.allowed is False
+    assert "Reward:risk" in result.reason
+
+
+def test_risk_manager_allows_target_at_or_above_min_reward_risk_ratio():
+    rm = RiskManager(
+        RiskLimits(
+            max_daily_loss=10000,
+            max_trade_loss=4000,
+            max_open_positions=2,
+            capital=100000,
+            min_reward_risk_ratio=0.5,
+        )
+    )
+    result = rm.validate_trade_risk(entry_price=250.0, stop_loss=212.5, lot_size=30, target=325.0)
+    assert result.allowed is True
+
+
 def test_trailing_stop_locks_in_gains_but_target_still_caps():
     # Target still caps the trade (see engine.py docstring for why - daily
     # option-snapshot granularity makes an uncapped trailing exit unsafe).

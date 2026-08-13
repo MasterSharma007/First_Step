@@ -13,7 +13,13 @@ import type {
   Trend,
 } from "./types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+// Server components run inside the frontend container, where the browser-facing
+// `localhost:<host-port>` URL doesn't reach the backend container - they need the
+// Docker network's service name instead.
+const API_BASE_URL =
+  typeof window === "undefined"
+    ? (process.env.API_INTERNAL_URL ?? "http://backend:8000/api/v1")
+    : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1");
 
 export class ApiError extends Error {
   constructor(

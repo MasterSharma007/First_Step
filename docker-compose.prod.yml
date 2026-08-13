@@ -64,6 +64,8 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
     container_name: bn_frontend
     restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://backend:8000/api/v1
     ports:
       - "127.0.0.1:${FRONTEND_HOST_PORT:-3000}:3000"
     depends_on:

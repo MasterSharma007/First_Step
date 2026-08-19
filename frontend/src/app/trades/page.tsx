@@ -29,7 +29,9 @@ export default async function TradesPage() {
                 <th className="px-4 py-2 font-medium">Mode</th>
                 <th className="px-4 py-2 font-medium">Status</th>
                 <th className="px-4 py-2 font-medium">Qty</th>
+                <th className="px-4 py-2 font-medium">Entry Date</th>
                 <th className="px-4 py-2 font-medium">Entry</th>
+                <th className="px-4 py-2 font-medium">Exit Date</th>
                 <th className="px-4 py-2 font-medium">Exit</th>
                 <th className="px-4 py-2 font-medium">P&amp;L</th>
                 <th className="px-4 py-2 font-medium">Reason</th>
@@ -48,7 +50,11 @@ export default async function TradesPage() {
                     </span>
                   </td>
                   <td className="px-4 py-2 text-black">{t.quantity}</td>
+                  <td className="px-4 py-2 text-slate-600">{new Date(t.entry_time).toLocaleString()}</td>
                   <td className="px-4 py-2 text-black">{t.entry_price.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-slate-600">
+                    {t.exit_time ? new Date(t.exit_time).toLocaleString() : "—"}
+                  </td>
                   <td className="px-4 py-2 text-black">{t.exit_price?.toFixed(2) ?? "—"}</td>
                   <td
                     className={`px-4 py-2 font-semibold ${

@@ -93,6 +93,13 @@ export const api = {
   dailyReport: (reportDate?: string) =>
     request<DailyReport>(`/reports/daily${reportDate ? `?report_date=${reportDate}` : ""}`),
 
+  rangeReport: (params: { startDate?: string; endDate?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.startDate) query.set("start_date", params.startDate);
+    if (params.endDate) query.set("end_date", params.endDate);
+    return request<DailyReport[]>(`/reports/range?${query.toString()}`);
+  },
+
   liveStatus: () => request<LiveStatus>("/live/status"),
 
   logsTail: (params: { lines?: number; level?: string } = {}) => {

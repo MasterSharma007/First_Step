@@ -83,6 +83,7 @@ export interface TradeExecution {
   stop_loss: number | null;
   target: number | null;
   pnl: number | null;
+  charges: number;
   exit_reason: string | null;
 }
 

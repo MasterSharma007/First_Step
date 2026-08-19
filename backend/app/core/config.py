@@ -44,7 +44,28 @@ class Settings(BaseSettings):
     # sr_capped_target() can crush the target down to almost nothing when
     # spot is already sitting at the level - this rejects those trades
     # instead of opening a full-risk, near-zero-reward position.
-    min_reward_risk_ratio: float = 0.5
+    min_reward_risk_ratio: float = 1.5
+
+    # Estimated round-trip transaction costs (SEE app/services/risk_management/costs.py).
+    # `charges` was never being populated before this, so every historical
+    # P&L figure was gross - a 3-day paper sample with 77 trades and a 17%
+    # win rate looked net positive (+3,544.50) on gross P&L but flips
+    # negative (~-2,230) once these are applied, because ~59 of those
+    # trades were small trailing-stop exits whose gross P&L (avg -26) is
+    # dwarfed by a ~75 flat round-trip cost. Defaults are commonly-quoted
+    # Zerodha/Kite F&O options rates - check against a real contract note
+    # before relying on this for live capital decisions.
+    brokerage_per_order: float = 20.0
+    stt_pct_on_sell: float = 0.001  # STT on options: 0.1% of sell-side premium turnover
+    exchange_txn_pct: float = 0.00035  # NSE F&O transaction charge, both legs
+    stamp_duty_pct: float = 0.00003  # stamp duty, buy-side turnover only
+    gst_pct: float = 0.18  # GST on brokerage + exchange transaction charges
+    # Reject an entry unless its target reward (at 1 lot) is at least this
+    # many multiples of the estimated round-trip cost for that lot - a
+    # trade with a "good enough" reward:risk ratio can still be a bad bet
+    # if the edge it's chasing is smaller than the toll every trade pays
+    # regardless of outcome.
+    min_reward_to_cost_ratio: float = 3.0
 
     # Live loop
     live_loop_enabled: bool = False

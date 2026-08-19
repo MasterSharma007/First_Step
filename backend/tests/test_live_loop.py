@@ -4,6 +4,7 @@ closing in the live/paper trading loop."""
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from app.core.config import Settings
 from app.models.trade_execution import TradeExecution, TradeMode, TradeStatus
 from app.workers.live_loop import _close_position, _fetch_fill_price, _is_past_square_off
 
@@ -72,8 +73,9 @@ def test_close_position_sets_status_and_pnl():
         entry_time=datetime.now(UTC),
         entry_price=650.45,
     )
-    _close_position(position, exit_price=700.0, reason="TARGET")
+    _close_position(position, exit_price=700.0, reason="TARGET", settings=Settings())
     assert position.status == TradeStatus.CLOSED
     assert position.exit_price == 700.0
     assert position.exit_reason == "TARGET"
     assert position.pnl == round((700.0 - 650.45) * 30, 2)
+    assert position.charges > 0

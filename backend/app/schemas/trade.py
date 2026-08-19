@@ -20,6 +20,7 @@ class TradeExecutionOut(BaseModel):
     stop_loss: float | None = None
     target: float | None = None
     pnl: float | None = None
+    charges: float = 0.0
     exit_reason: str | None = None
 
     class Config:

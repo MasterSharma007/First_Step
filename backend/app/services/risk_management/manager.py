@@ -18,6 +18,7 @@ class RiskLimits:
     capital: float
     risk_per_trade_pct: float = 1.0  # % of capital risked per trade
     min_reward_risk_ratio: float = 0.5  # reject trades offering less reward than this multiple of their risk
+    min_reward_to_cost_ratio: float = 3.0  # reject trades whose target reward doesn't clearly clear round-trip costs
 
 
 @dataclass
@@ -38,7 +39,12 @@ class RiskManager:
         return RiskCheckResult(True)
 
     def validate_trade_risk(
-        self, entry_price: float, stop_loss: float, lot_size: int, target: float | None = None
+        self,
+        entry_price: float,
+        stop_loss: float,
+        lot_size: int,
+        target: float | None = None,
+        round_trip_cost: float | None = None,
     ) -> RiskCheckResult:
         risk_per_lot = abs(entry_price - stop_loss) * lot_size
         if risk_per_lot > self.limits.max_trade_loss:
@@ -56,6 +62,16 @@ class RiskManager:
                     f"Reward:risk {reward_points / risk_points:.2f} below minimum "
                     f"{self.limits.min_reward_risk_ratio:.2f} (risk {risk_points:.2f}, reward {reward_points:.2f})",
                 )
+
+            if round_trip_cost is not None:
+                reward_amount = reward_points * lot_size
+                min_reward = round_trip_cost * self.limits.min_reward_to_cost_ratio
+                if reward_amount < min_reward:
+                    return RiskCheckResult(
+                        False,
+                        f"Target reward {reward_amount:.2f} doesn't clear round-trip costs "
+                        f"({round_trip_cost:.2f} x {self.limits.min_reward_to_cost_ratio:.1f} = {min_reward:.2f})",
+                    )
 
         return RiskCheckResult(True)
 

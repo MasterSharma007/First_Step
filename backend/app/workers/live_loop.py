@@ -36,6 +36,7 @@ from app.services.kite.instruments import InstrumentResolver
 from app.services.kite.live_quote import fetch_ltp
 from app.services.kite.orders import KiteOrderService
 from app.services.live.snapshot import STOP_LOSS_PCT, LiveSnapshot, compute_live_snapshot
+from app.services.risk_management.costs import estimate_round_trip_charges
 from app.services.risk_management.manager import RiskLimits, RiskManager
 from app.services.signal_engine.exit_rules import stop_loss_from_percentage, trail_stop_loss
 from app.services.signal_engine.scorer import SignalEngine
@@ -94,20 +95,24 @@ async def _daily_realized_pnl(db: AsyncSession, mode: TradeMode) -> float:
     return sum(float(r.pnl or 0) for r in rows)
 
 
-def _close_position(position: TradeExecution, exit_price: float, reason: str) -> None:
+def _close_position(position: TradeExecution, exit_price: float, reason: str, settings: Settings) -> None:
     position.status = TradeStatus.CLOSED
     position.exit_time = datetime.now(UTC)
     position.exit_price = exit_price
     position.pnl = round((exit_price - float(position.entry_price)) * position.quantity, 2)
+    position.charges = estimate_round_trip_charges(
+        float(position.entry_price), exit_price, position.quantity, settings
+    )
     position.exit_reason = reason
     event = "live_position_closed" if position.mode == TradeMode.LIVE else "paper_position_closed"
-    logger.info(event, symbol=position.symbol, reason=reason, pnl=position.pnl)
+    logger.info(event, symbol=position.symbol, reason=reason, pnl=position.pnl, charges=position.charges)
 
 
 async def _check_exits(
     db: AsyncSession,
     client: KiteClient,
     positions: list[TradeExecution],
+    settings: Settings,
     force_close: bool = False,
     live: bool = False,
 ) -> None:
@@ -161,7 +166,7 @@ async def _check_exits(
                 logger.error("live_exit_order_failed", symbol=position.symbol, error=str(exc))
                 continue
 
-        _close_position(position, exit_price, exit_reason)
+        _close_position(position, exit_price, exit_reason, settings)
 
     await db.commit()
 
@@ -223,8 +228,15 @@ async def _maybe_open_position(
         logger.warning("live_entry_instrument_not_found", strike=snapshot.suggested_strike, expiry=str(snapshot.expiry))
         return
 
+    round_trip_cost = estimate_round_trip_charges(
+        snapshot.entry_price, snapshot.target, instrument.lot_size, settings
+    )
     risk_check = risk_manager.validate_trade_risk(
-        snapshot.entry_price, snapshot.stop_loss, instrument.lot_size, target=snapshot.target
+        snapshot.entry_price,
+        snapshot.stop_loss,
+        instrument.lot_size,
+        target=snapshot.target,
+        round_trip_cost=round_trip_cost,
     )
     if not risk_check.allowed:
         logger.info("live_entry_risk_rejected", reason=risk_check.reason)
@@ -313,7 +325,9 @@ async def run_live_cycle(
     mode = TradeMode.PAPER if settings.paper_trading else TradeMode.LIVE
     force_close = _is_past_square_off(datetime.now(UTC), settings.eod_square_off_time)
     open_positions = await _open_positions(db, mode)
-    await _check_exits(db, client, open_positions, force_close=force_close, live=(mode == TradeMode.LIVE))
+    await _check_exits(
+        db, client, open_positions, settings, force_close=force_close, live=(mode == TradeMode.LIVE)
+    )
 
     if force_close:
         return snapshot
@@ -327,6 +341,7 @@ async def run_live_cycle(
             capital=settings.paper_trading_capital,
             risk_per_trade_pct=settings.risk_per_trade_pct,
             min_reward_risk_ratio=settings.min_reward_risk_ratio,
+            min_reward_to_cost_ratio=settings.min_reward_to_cost_ratio,
         )
     )
     await _maybe_open_position(db, client, settings, resolver, snapshot, risk_manager, remaining_open, mode)

@@ -209,6 +209,45 @@ def test_risk_manager_allows_target_at_or_above_min_reward_risk_ratio():
     assert result.allowed is True
 
 
+def test_risk_manager_rejects_target_below_min_reward_to_cost_ratio():
+    # Good reward:risk shape, but the reward itself is tiny in rupee terms
+    # (1 point x 30 qty = 30) - smaller than what a round trip actually
+    # costs, so the trade is a guaranteed loser before the market even
+    # moves.
+    rm = RiskManager(
+        RiskLimits(
+            max_daily_loss=10000,
+            max_trade_loss=4000,
+            max_open_positions=2,
+            capital=100000,
+            min_reward_risk_ratio=0.5,
+            min_reward_to_cost_ratio=3.0,
+        )
+    )
+    result = rm.validate_trade_risk(
+        entry_price=250.0, stop_loss=249.0, lot_size=30, target=251.0, round_trip_cost=75.0
+    )
+    assert result.allowed is False
+    assert "round-trip costs" in result.reason
+
+
+def test_risk_manager_allows_target_above_min_reward_to_cost_ratio():
+    rm = RiskManager(
+        RiskLimits(
+            max_daily_loss=10000,
+            max_trade_loss=4000,
+            max_open_positions=2,
+            capital=100000,
+            min_reward_risk_ratio=0.5,
+            min_reward_to_cost_ratio=3.0,
+        )
+    )
+    result = rm.validate_trade_risk(
+        entry_price=250.0, stop_loss=212.5, lot_size=30, target=325.0, round_trip_cost=75.0
+    )
+    assert result.allowed is True
+
+
 def test_trailing_stop_locks_in_gains_but_target_still_caps():
     # Target still caps the trade (see engine.py docstring for why - daily
     # option-snapshot granularity makes an uncapped trailing exit unsafe).

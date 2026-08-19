@@ -34,6 +34,8 @@ export default async function TradesPage() {
                 <th className="px-4 py-2 font-medium">Exit Date</th>
                 <th className="px-4 py-2 font-medium">Exit</th>
                 <th className="px-4 py-2 font-medium">P&amp;L</th>
+                <th className="px-4 py-2 font-medium">Charges</th>
+                <th className="px-4 py-2 font-medium">Net</th>
                 <th className="px-4 py-2 font-medium">Reason</th>
               </tr>
             </thead>
@@ -62,6 +64,20 @@ export default async function TradesPage() {
                     }`}
                   >
                     {t.pnl?.toFixed(2) ?? "—"}
+                  </td>
+                  <td className="px-4 py-2 text-slate-500">{t.charges.toFixed(2)}</td>
+                  <td
+                    className={`px-4 py-2 font-semibold ${
+                      t.pnl == null
+                        ? "text-black"
+                        : t.pnl - t.charges > 0
+                          ? "text-green-600"
+                          : t.pnl - t.charges < 0
+                            ? "text-red-600"
+                            : "text-black"
+                    }`}
+                  >
+                    {t.pnl != null ? (t.pnl - t.charges).toFixed(2) : "—"}
                   </td>
                   <td className="px-4 py-2 text-slate-500">{t.exit_reason ?? "—"}</td>
                 </tr>
